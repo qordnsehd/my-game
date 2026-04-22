@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dot Dodge Game</title>
+    <style>
+        body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background: #222; overflow: hidden; }
+        canvas { border: 2px solid #fff; background: #000; }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let player = { x: 200, y: 550, size: 20, color: '#00FF00' };
+        let dots = [];
+        let score = 0;
+        let gameOver = false;
+
+        function createDot() {
+            if (Math.random() < 0.05) {
+                dots.push({ x: Math.random() * canvas.width, y: 0, size: 10, speed: 3 + Math.random() * 4 });
+            }
+        }
+
+        function update() {
+            if (gameOver) return;
+            dots.forEach((dot, i) => {
+                dot.y += dot.speed;
+                if (dot.y > canvas.height) { dots.splice(i, 1); score++; }
+                if (Math.hypot(player.x - dot.x, player.y - dot.y) < player.size / 2 + dot.size / 2) gameOver = true;
+            });
+            createDot();
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = player.color;
+            ctx.beginPath(); ctx.arc(player.x, player.y, player.size/2, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = 'red';
+            dots.forEach(dot => { ctx.beginPath(); ctx.arc(dot.x, dot.y, dot.size/2, 0, Math.PI*2); ctx.fill(); });
+            ctx.fillStyle = 'white'; ctx.fillText(`Score: ${score}`, 10, 20);
+            if (gameOver) { ctx.fillText('Game Over! Click to Restart', 130, 300); }
+        }
+
+        canvas.addEventListener('mousemove', e => {
+            const rect = canvas.getBoundingClientRect();
+            player.x = e.clientX - rect.left;
+        });
+
+        canvas.addEventListener('click', () => { if (gameOver) { dots = []; score = 0; gameOver = false; loop(); } });
+
+        function loop() { update(); draw(); if (!gameOver) requestAnimationFrame(loop); }
+        loop();
+    </script>
+</body>
+</html>
