@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Virus Shooter - Hardcore Boss Edition</title>
+    <title>Virus Shooter - Hardcore Scaling</title>
     <style>
         body { margin: 0; background: #000; overflow: hidden; color: #fff; font-family: 'Malgun Gothic', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; touch-action: none; -webkit-user-select: none; user-select: none; }
         canvas { display: block; background: #050505; border: 2px solid #333; box-shadow: 0 0 20px rgba(138, 43, 226, 0.5); max-width: 100%; max-height: 100vh; cursor: crosshair; }
@@ -21,7 +21,7 @@
     
     <div id="upgrade-menu">
         <h2 style="color:#8a2be2; margin: 0; font-size: 20px;">무기 선택 (50발)</h2>
-        <p style="font-size: 12px; margin: 5px 0 15px 0;">강력한 보스를 상대로 무기를 선택하세요!</p>
+        <p style="font-size: 12px; margin: 5px 0 15px 0;">적들이 빨라졌습니다! 무기를 고르세요.</p>
         <div class="btn-grid">
             <button onclick="applyUpgrade('MachineGun')">🚀 머신건</button>
             <button onclick="applyUpgrade('Laser')">⚡ 레이저</button>
@@ -44,26 +44,27 @@ function playSound(type) {
     const gain = audioCtx.createGain();
     osc.connect(gain); gain.connect(audioCtx.destination);
     const now = audioCtx.currentTime;
-    if (type === 'shoot') { osc.type = 'triangle'; osc.frequency.setValueAtTime(440, now); osc.frequency.exponentialRampToValueAtTime(110, now+0.1); gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.01, now+0.1); osc.start(); osc.stop(now+0.1); }
-    else if (type === 'laser') { osc.type = 'sawtooth'; osc.frequency.setValueAtTime(880, now); osc.frequency.exponentialRampToValueAtTime(220, now+0.3); gain.gain.setValueAtTime(0.05, now); gain.gain.linearRampToValueAtTime(0, now+0.3); osc.start(); osc.stop(now+0.3); }
-    else if (type === 'exp') { osc.type = 'square'; osc.frequency.setValueAtTime(100, now); osc.frequency.exponentialRampToValueAtTime(40, now+0.2); gain.gain.setValueAtTime(0.2, now); gain.gain.linearRampToValueAtTime(0, now+0.2); osc.start(); osc.stop(now+0.2); }
-    else if (type === 'item') { osc.type = 'sine'; osc.frequency.setValueAtTime(523, now); osc.frequency.exponentialRampToValueAtTime(1046, now+0.2); gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now+0.2); osc.start(); osc.stop(now+0.2); }
-    else if (type === 'upgrade') { osc.type = 'sine'; osc.frequency.setValueAtTime(330, now); osc.frequency.exponentialRampToValueAtTime(660, now+0.5); gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now+0.5); osc.start(); osc.stop(now+0.5); }
+    if (type === 'shoot') { osc.type = 'triangle'; osc.frequency.setValueAtTime(440, now); osc.frequency.exponentialRampToValueAtTime(110, now+0.08); gain.gain.setValueAtTime(0.08, now); gain.gain.exponentialRampToValueAtTime(0.01, now+0.08); osc.start(); osc.stop(now+0.08); }
+    else if (type === 'laser') { osc.type = 'sawtooth'; osc.frequency.setValueAtTime(880, now); osc.frequency.exponentialRampToValueAtTime(330, now+0.2); gain.gain.setValueAtTime(0.05, now); gain.gain.linearRampToValueAtTime(0, now+0.2); osc.start(); osc.stop(now+0.2); }
+    else if (type === 'exp') { osc.type = 'square'; osc.frequency.setValueAtTime(120, now); osc.frequency.exponentialRampToValueAtTime(40, now+0.15); gain.gain.setValueAtTime(0.15, now); gain.gain.linearRampToValueAtTime(0, now+0.15); osc.start(); osc.stop(now+0.15); }
+    else if (type === 'item') { osc.type = 'sine'; osc.frequency.setValueAtTime(440, now); osc.frequency.exponentialRampToValueAtTime(880, now+0.2); gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now+0.2); osc.start(); osc.stop(now+0.2); }
+    else if (type === 'upgrade') { osc.type = 'sine'; osc.frequency.setValueAtTime(261, now); osc.frequency.exponentialRampToValueAtTime(523, now+0.4); gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now+0.4); osc.start(); osc.stop(now+0.4); }
 }
 
 let stage = 1, score = 0, kills = 0, bombInventory = 0, armorTimer = 0, armorActive = false;
 let weaponType = 'Normal', ammo = 0, isPaused = false, gameOver = false, isShooting = false;
-let player = { x: 225, y: 720, w: 30, h: 35, speed: 8, angle: 0 };
+let player = { x: 225, y: 720, w: 30, h: 35, speed: 9, angle: 0 };
 let bullets = [], enemyBullets = [], enemies = [], activeItems = [];
 let tapCount = 0, lastTapTime = 0, keys = {};
 
 function drawCovidVirus(x, y, radius, color, isBoss) {
     ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill();
-    const spikeCount = isBoss ? 16 : 10;
+    const spikeCount = isBoss ? 18 : 10;
     for (let i = 0; i < spikeCount; i++) {
         const angle = (i / spikeCount) * Math.PI * 2 + player.angle * 0.5;
-        const spikeX = x + Math.cos(angle) * (radius + radius * 0.5);
-        const spikeY = y + Math.sin(angle) * (radius + radius * 0.5);
+        const dist = isBoss ? radius * 0.6 : radius * 0.5;
+        const spikeX = x + Math.cos(angle) * (radius + dist);
+        const spikeY = y + Math.sin(angle) * (radius + dist);
         ctx.strokeStyle = color; ctx.lineWidth = radius * 0.2;
         ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(spikeX, spikeY); ctx.stroke();
         ctx.fillStyle = color; ctx.beginPath(); ctx.arc(spikeX, spikeY, radius * 0.3, 0, Math.PI * 2); ctx.fill();
@@ -96,14 +97,17 @@ canvas.addEventListener('touchend', () => isShooting = false);
 
 function spawnEnemy(isBoss = false) {
     const size = isBoss ? 80 : 25;
-    // 보스 체력 설정: 기본 탄환 기준 30발 이상 (스테이지 비례)
-    const bossHp = 30 + (stage * 20); 
+    // 보스 체력: 스테이지마다 10씩 상승 (기본 30 + (stage-1)*10)
+    const bossHp = 20 + (stage * 10); 
     enemies.push({
         x: size + Math.random() * (canvas.width - size * 2), y: -size * 2,
         r: size, hp: isBoss ? bossHp : 1, maxHp: isBoss ? bossHp : 1,
-        speedY: isBoss ? 0.5 : 1.5 + (stage * 0.3), baseX: size + Math.random() * (canvas.width - size * 2),
-        isBoss: isBoss, lastShot: 0, shootInterval: isBoss ? 600 : 2500 + Math.random() * 2000,
-        color: isBoss ? '#ff0000' : `hsl(${Math.random() * 60 + 10}, 80%, 50%)`
+        // 전체 속도 상향: 스테이지당 속도 보정 추가
+        speedY: isBoss ? (0.5 + stage * 0.1) : (1.8 + stage * 0.4), 
+        baseX: size + Math.random() * (canvas.width - size * 2),
+        isBoss: isBoss, lastShot: 0, 
+        shootInterval: isBoss ? Math.max(300, 600 - stage * 20) : Math.max(1000, 2500 - stage * 100),
+        color: isBoss ? '#ff0055' : `hsl(${Math.random() * 60 + 10}, 80%, 50%)`
     });
 }
 
@@ -119,7 +123,7 @@ function shoot() {
     }
 }
 
-function triggerMegaBomb() { if (bombInventory > 0) { bombInventory--; enemies = enemies.filter(e => e.isBoss); if(enemies.length > 0) enemies[0].hp -= 10; enemyBullets = []; playSound('exp'); ctx.fillStyle = "white"; ctx.fillRect(0,0,canvas.width, canvas.height); } }
+function triggerMegaBomb() { if (bombInventory > 0) { bombInventory--; enemies.forEach(e => { if(e.isBoss) e.hp -= 15; }); enemies = enemies.filter(e => e.isBoss || (score += 100 && false)); enemyBullets = []; playSound('exp'); ctx.fillStyle = "white"; ctx.fillRect(0,0,canvas.width, canvas.height); } }
 
 function applyUpgrade(type) { weaponType = type; ammo = 50; isPaused = false; document.getElementById('upgrade-menu').style.display = 'none'; isShooting = false; playSound('upgrade'); const icons = {'MachineGun':'🚀', 'Laser':'⚡', 'Homing':'🎯'}; document.getElementById('wep-icon').innerText = icons[type]; }
 
@@ -128,35 +132,34 @@ function update() {
     if (keys['ArrowLeft'] && player.x > 0) player.x -= player.speed;
     if (keys['ArrowRight'] && player.x < canvas.width - player.w) player.x += player.speed;
     if (isShooting || keys['Space']) shoot();
-    player.angle += 0.08;
+    player.angle += (0.08 + stage * 0.005);
     if (armorTimer > 0) { armorTimer -= 1/60; if (armorTimer <= 0) armorActive = false; }
     if (Math.random() < 0.022 + (stage * 0.006) && kills < 100) { if ((kills === 50 || kills === 99) && !enemies.some(e => e.isBoss)) spawnEnemy(true); else if (enemies.length < 5 + stage) spawnEnemy(false); }
     const now = Date.now();
-    enemies.forEach(e => {
-        e.y += e.speedY; if (!e.isBoss) e.x = e.baseX + Math.sin(e.y * 0.05) * 50;
-        if (e.y > canvas.height + e.r) enemies.splice(enemies.indexOf(e), 1);
+    enemies.forEach((e, ei) => {
+        e.y += e.speedY; if (!e.isBoss) e.x = e.baseX + Math.sin(e.y * (0.05 + stage * 0.002)) * (50 + stage * 5);
+        if (e.y > canvas.height + e.r) enemies.splice(ei, 1);
         if (now - e.lastShot > e.shootInterval) { 
             enemyBullets.push({ x: e.x, y: e.y + e.r, w: 5, h: 10 }); 
-            if(e.isBoss) enemyBullets.push({ x: e.x-20, y: e.y+e.r, w:5, h:10 }, { x: e.x+20, y: e.y+e.r, w:5, h:10 });
+            if(e.isBoss) enemyBullets.push({ x: e.x-30, y: e.y+e.r, w:5, h:10 }, { x: e.x+30, y: e.y+e.r, w:5, h:10 });
             e.lastShot = now; 
         }
         const dx = e.x - (player.x + player.w/2), dy = e.y - (player.y + player.h/2);
-        if (Math.sqrt(dx*dx + dy*dy) < e.r + 15) { if (!armorActive) gameOver = true; else { enemies.splice(enemies.indexOf(e), 1); kills++; playSound('exp'); } }
+        if (Math.sqrt(dx*dx + dy*dy) < e.r + 15) { if (!armorActive) gameOver = true; else { enemies.splice(ei, 1); kills++; playSound('exp'); } }
     });
     bullets.forEach((b, bi) => {
-        if (b.type === 'homing') { b.y -= 8; if (!b.target || !enemies.includes(b.target)) { let closest = Infinity; enemies.forEach(e => { let d = Math.sqrt((e.x-b.x)**2 + (e.y-b.y)**2); if (d < closest) { closest = d; b.target = e; } }); } if (b.target) { let dx = b.target.x - b.x, dy = b.target.y - b.y, dist = Math.sqrt(dx*dx + dy*dy); if (dist > 5) { b.x += (dx/dist) * 4; b.y += (dy/dist) * 1; } } } else b.y -= 14;
+        if (b.type === 'homing') { b.y -= 9; if (!b.target || !enemies.includes(b.target)) { let closest = Infinity; enemies.forEach(e => { let d = Math.sqrt((e.x-b.x)**2 + (e.y-b.y)**2); if (d < closest) { closest = d; b.target = e; } }); } if (b.target) { let dx = b.target.x - b.x, dy = b.target.y - b.y, dist = Math.sqrt(dx*dx + dy*dy); if (dist > 5) { b.x += (dx/dist) * 5; b.y += (dy/dist) * 1.5; } } } else b.y -= 15;
         if (b.y < -50 || b.x < -50 || b.x > canvas.width+50) bullets.splice(bi, 1);
         enemies.forEach((e, ei) => {
             let hit = b.type === 'homing' ? Math.sqrt((b.x-e.x)**2 + (b.y-e.y)**2) < e.r + b.r : (b.x < e.x + e.r && b.x + b.w > e.x - e.r && b.y < e.y + e.r && b.y + b.h > e.y - e.r);
             if (hit) {
-                e.hp -= (b.type === 'laser' ? 5 : (b.type === 'homing' ? 3 : 1)); 
-                if (b.type !== 'laser') bullets.splice(bi, 1);
-                if (e.hp <= 0) { enemies.splice(ei, 1); kills++; score += e.isBoss ? 5000 : 150; playSound('exp'); if (kills % 10 === 0) activeItems.push({ x: e.x, y: e.y }); if (kills % 20 === 0 && kills < 100) { isPaused = true; document.getElementById('upgrade-menu').style.display = 'block'; } if (kills >= 100) { stage++; kills = 0; armorTimer = 0; } }
+                e.hp -= (b.type === 'laser' ? 6 : (b.type === 'homing' ? 4 : 1)); if (b.type !== 'laser') bullets.splice(bi, 1);
+                if (e.hp <= 0) { enemies.splice(ei, 1); kills++; score += e.isBoss ? (5000 * stage) : 150; playSound('exp'); if (kills % 10 === 0) activeItems.push({ x: e.x, y: e.y }); if (kills % 20 === 0 && kills < 100) { isPaused = true; document.getElementById('upgrade-menu').style.display = 'block'; } if (kills >= 100) { stage++; kills = 0; armorTimer = 0; } }
             }
         });
     });
-    enemyBullets.forEach((eb, ebi) => { eb.y += 6 + (stage * 0.4); if (eb.y > canvas.height) enemyBullets.splice(ebi, 1); if (eb.x < player.x + player.w && eb.x + eb.w > player.x && eb.y < player.y + player.h && eb.y + eb.h > player.y) { if (!armorActive) gameOver = true; else enemyBullets.splice(ebi, 1); } });
-    activeItems.forEach((item, i) => { item.y += 3; if (player.x < item.x + 25 && player.x + player.w > item.x && player.y < item.y + 25 && player.y + player.h > item.y) { bombInventory++; armorTimer = 10; armorActive = true; activeItems.splice(i, 1); playSound('item'); } });
+    enemyBullets.forEach((eb, ebi) => { eb.y += 7 + (stage * 0.6); if (eb.y > canvas.height) enemyBullets.splice(ebi, 1); if (eb.x < player.x + player.w && eb.x + eb.w > player.x && eb.y < player.y + player.h && eb.y + eb.h > player.y) { if (!armorActive) gameOver = true; else enemyBullets.splice(ebi, 1); } });
+    activeItems.forEach((item, i) => { item.y += 4; if (player.x < item.x + 25 && player.x + player.w > item.x && player.y < item.y + 25 && player.y + player.h > item.y) { bombInventory++; armorTimer = 10; armorActive = true; activeItems.splice(i, 1); playSound('item'); } });
     document.getElementById('stage-txt').innerText = stage; document.getElementById('score-txt').innerText = score; document.getElementById('armor-txt').innerText = armorActive ? Math.ceil(armorTimer) + "s" : "OFF"; document.getElementById('bomb-txt').innerText = bombInventory; document.getElementById('ammo-txt').innerText = (weaponType === 'Normal') ? '∞' : ammo;
 }
 
@@ -164,7 +167,7 @@ function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (armorActive) { ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(player.x + player.w/2, player.y + player.h/2, 45, 0, Math.PI*2); ctx.stroke(); for(let i=0; i<3; i++) { let bx = player.x + player.w/2 + Math.cos(player.angle + (Math.PI*2/3)*i) * 45, by = player.y + player.h/2 + Math.sin(player.angle + (Math.PI*2/3)*i) * 45; ctx.fillStyle = '#ffff00'; ctx.beginPath(); ctx.arc(bx, by, 4, 0, Math.PI*2); ctx.fill(); } }
     ctx.fillStyle = '#8a2be2'; ctx.beginPath(); ctx.moveTo(player.x+player.w/2, player.y); ctx.lineTo(player.x+player.w, player.y+player.h); ctx.lineTo(player.x, player.y+player.h); ctx.fill();
-    enemies.forEach(e => { drawCovidVirus(e.x, e.y, e.r, e.color, e.isBoss); if(e.isBoss){ ctx.fillStyle='red'; ctx.fillRect(e.x-40, e.y-e.r-20, (e.hp/e.maxHp)*80, 5); } });
+    enemies.forEach(e => { drawCovidVirus(e.x, e.y, e.r, e.color, e.isBoss); if(e.isBoss){ ctx.fillStyle='red'; ctx.fillRect(e.x-50, e.y-e.r-25, (e.hp/e.maxHp)*100, 7); } });
     enemyBullets.forEach(eb => { ctx.fillStyle = '#ff4444'; ctx.fillRect(eb.x, eb.y, eb.w, eb.h); });
     bullets.forEach(b => { ctx.fillStyle = b.type === 'laser' ? '#00ffff' : (b.type === 'homing' ? '#ff4500' : '#fff'); if (b.type === 'homing') { ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill(); } else ctx.fillRect(b.x, b.y, b.w, b.h); });
     activeItems.forEach(item => { ctx.fillStyle = '#ffff00'; ctx.fillRect(item.x-12, item.y-12, 25, 25); ctx.fillStyle = '#000'; ctx.font = 'bold 16px Arial'; ctx.fillText('B', item.x-6, item.y+6); });
