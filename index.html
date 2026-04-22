@@ -1,57 +1,189 @@
-<!DOCTYPE html>
+<<!DOCTYPE html>
 <html>
 <head>
-    <title>Dot Dodge Game</title>
+    <title>Virus Shooter - Stage System</title>
     <style>
-        body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background: #222; overflow: hidden; }
-        canvas { border: 2px solid #fff; background: #000; }
+        body { margin: 0; background: #000; overflow: hidden; color: #fff; font-family: sans-serif; }
+        canvas { display: block; margin: 0 auto; background: #050505; border: 2px solid #333; }
+        #ui { position: absolute; top: 10; left: 10; pointer-events: none; }
+        #upgrade-menu { 
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.9); padding: 20px; border: 2px solid #8a2be2;
+            display: none; text-align: center; z-index: 100;
+        }
+        button { background: #8a2be2; color: white; border: none; padding: 10px 20px; margin: 10px; cursor: pointer; border-radius: 5px; }
+        button:hover { background: #a04ef6; }
     </style>
 </head>
 <body>
-    <canvas id="gameCanvas" width="400" height="600"></canvas>
-    <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        let player = { x: 200, y: 550, size: 20, color: '#00FF00' };
-        let dots = [];
-        let score = 0;
-        let gameOver = false;
+    <div id="ui">
+        <div>Stage: <span id="stage-txt">1</span> | Score: <span id="score-txt">0</span></div>
+        <div>Enemies Defeated: <span id="kill-txt">0</span>/100</div>
+        <div>Weapon: <span id="weapon-txt">Normal</span> (<span id="timer-txt">0</span>s)</div>
+        <div>Bombs: <span id="bomb-txt">0</span></div>
+    </div>
+    <div id="upgrade-menu">
+        <h2>WEAPON UPGRADE!</h2>
+        <p>Choose your power-up (20 Sec)</p>
+        <button onclick="applyUpgrade('MachineGun')">Machine Gun (Fast)</button>
+        <button onclick="applyUpgrade('Laser')">Mega Laser (Wide)</button>
+    </div>
+    <canvas id="gameCanvas"></canvas>
 
-        function createDot() {
-            if (Math.random() < 0.05) {
-                dots.push({ x: Math.random() * canvas.width, y: 0, size: 10, speed: 3 + Math.random() * 4 });
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+canvas.width = 480; canvas.height = 720;
+
+// Game State
+let stage = 1, score = 0, kills = 0, totalKills = 0;
+let bombs = 0, activeBombsOnScreen = 0;
+let weaponType = 'Normal', weaponTimer = 0;
+let isPaused = false, gameOver = false;
+
+// Entities
+let player = { x: 240, y: 650, w: 30, h: 35, speed: 5 };
+let bullets = [], enemies = [], items = [];
+
+// Input
+let keys = {};
+window.addEventListener('keydown', e => keys[e.code] = true);
+window.addEventListener('keyup', e => keys[e.code] = false);
+
+function spawnEnemy(isBoss = false) {
+    enemies.push({
+        x: Math.random() * (canvas.width - 40),
+        y: -50,
+        w: isBoss ? 80 : 30,
+        h: isBoss ? 80 : 30,
+        hp: isBoss ? 20 + (stage * 10) : 1,
+        speed: isBoss ? 1 : 2 + (stage * 0.2),
+        isBoss: isBoss,
+        color: `hsl(${Math.random() * 100 + 80}, 100%, 50%)` // 형광색 바이러스
+    });
+}
+
+function shoot() {
+    const now = Date.now();
+    if (weaponType === 'Normal') {
+        if (now - (player.lastShot || 0) > 400) {
+            bullets.push({ x: player.x + 13, y: player.y, w: 4, h: 10, type: 'normal' });
+            player.lastShot = now;
+        }
+    } else if (weaponType === 'MachineGun') {
+        if (now - (player.lastShot || 0) > 100) {
+            bullets.push({ x: player.x + 13, y: player.y, w: 4, h: 10, type: 'mg' });
+            player.lastShot = now;
+        }
+    } else if (weaponType === 'Laser') {
+        if (now - (player.lastShot || 0) > 600) {
+            bullets.push({ x: player.x - 10, y: player.y - 10, w: 50, h: 15, type: 'laser' });
+            player.lastShot = now;
+        }
+    }
+}
+
+function applyUpgrade(type) {
+    weaponType = type;
+    weaponTimer = 20;
+    document.getElementById('upgrade-menu').style.display = 'none';
+    isPaused = false;
+}
+
+function useBomb() {
+    if (bombs > 0) {
+        bombs--;
+        enemies = []; // 화면 적 제거
+        score += 100;
+    }
+}
+
+function update() {
+    if (isPaused || gameOver) return;
+
+    // Movement
+    if (keys['ArrowLeft'] && player.x > 0) player.x -= player.speed;
+    if (keys['ArrowRight'] && player.x < canvas.width - player.w) player.x += player.speed;
+    if (keys['Space']) shoot();
+    if (keys['KeyX']) useBomb();
+
+    // Weapon Timer
+    if (weaponTimer > 0) {
+        weaponTimer -= 1/60;
+        if (weaponTimer <= 0) weaponType = 'Normal';
+    }
+
+    // Spawn Logic
+    if (Math.random() < 0.02 + (stage * 0.005) && kills < 100) {
+        if (kills === 50 && !enemies.some(e => e.isBoss)) spawnEnemy(true);
+        if (kills === 99 && !enemies.some(e => e.isBoss)) spawnEnemy(true);
+        if (!enemies.some(e => e.isBoss) && enemies.length < 5 + stage) spawnEnemy(false);
+    }
+
+    // Bullets & Enemies collision
+    bullets.forEach((b, bi) => {
+        b.y -= 7;
+        enemies.forEach((e, ei) => {
+            if (b.x < e.x + e.w && b.x + b.w > e.x && b.y < e.y + e.h && b.y + b.h > e.y) {
+                e.hp -= (b.type === 'laser' ? 5 : 1);
+                if (b.type !== 'laser') bullets.splice(bi, 1);
+                if (e.hp <= 0) {
+                    enemies.splice(ei, 1);
+                    kills++; totalKills++; score += e.isBoss ? 500 : 10;
+                    
+                    // Bomb Spawn Logic
+                    if (totalKills % 10 === 0 && activeBombsOnScreen < 2) {
+                        items.push({ x: e.x, y: e.y, type: 'bomb' });
+                        activeBombsOnScreen++;
+                    }
+                    // Upgrade Trigger
+                    if (kills % 20 === 0 && kills < 100) {
+                        isPaused = true;
+                        document.getElementById('upgrade-menu').style.display = 'block';
+                    }
+                    // Stage Clear
+                    if (kills >= 100) {
+                        stage++; kills = 0;
+                    }
+                }
             }
-        }
-
-        function update() {
-            if (gameOver) return;
-            dots.forEach((dot, i) => {
-                dot.y += dot.speed;
-                if (dot.y > canvas.height) { dots.splice(i, 1); score++; }
-                if (Math.hypot(player.x - dot.x, player.y - dot.y) < player.size / 2 + dot.size / 2) gameOver = true;
-            });
-            createDot();
-        }
-
-        function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = player.color;
-            ctx.beginPath(); ctx.arc(player.x, player.y, player.size/2, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = 'red';
-            dots.forEach(dot => { ctx.beginPath(); ctx.arc(dot.x, dot.y, dot.size/2, 0, Math.PI*2); ctx.fill(); });
-            ctx.fillStyle = 'white'; ctx.fillText(`Score: ${score}`, 10, 20);
-            if (gameOver) { ctx.fillText('Game Over! Click to Restart', 130, 300); }
-        }
-
-        canvas.addEventListener('mousemove', e => {
-            const rect = canvas.getBoundingClientRect();
-            player.x = e.clientX - rect.left;
         });
+    });
 
-        canvas.addEventListener('click', () => { if (gameOver) { dots = []; score = 0; gameOver = false; loop(); } });
+    enemies.forEach((e, i) => {
+        e.y += e.speed;
+        if (e.y > canvas.height) enemies.splice(i, 1);
+        if (player.x < e.x + e.w && player.x + player.w > e.x && player.y < e.y + e.h && player.y + player.h > e.y) gameOver = true;
+    });
 
-        function loop() { update(); draw(); if (!gameOver) requestAnimationFrame(loop); }
-        loop();
-    </script>
-</body>
-</html>
+    items.forEach((item, i) => {
+        item.y += 2;
+        if (player.x < item.x + 20 && player.x + player.w > item.x && player.y < item.y + 20 && player.y + player.h > item.y) {
+            bombs++; items.splice(i, 1); activeBombsOnScreen--;
+        }
+    });
+
+    document.getElementById('stage-txt').innerText = stage;
+    document.getElementById('score-txt').innerText = score;
+    document.getElementById('kill-txt').innerText = kills;
+    document.getElementById('weapon-txt').innerText = weaponType;
+    document.getElementById('timer-txt').innerText = Math.ceil(weaponTimer);
+    document.getElementById('bomb-txt').innerText = bombs;
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Player (보라색 비행체)
+    ctx.fillStyle = '#8a2be2';
+    ctx.beginPath();
+    ctx.moveTo(player.x + 15, player.y);
+    ctx.lineTo(player.x + 30, player.y + 35);
+    ctx.lineTo(player.x, player.y + 35);
+    ctx.fill();
+
+    // Enemies (형광 바이러스)
+    enemies.forEach(e => {
+        ctx.fillStyle = e.color;
+        ctx.beginPath();
+        ctx.arc(e.x + e.w/2, e.y + e.h/2, e
