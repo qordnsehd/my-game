@@ -3,13 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Virus Shooter - Cody Edition</title>
+    <title>Virus Shooter - Cody Real Survival</title>
     <style>
         body { margin: 0; background: #000; overflow: hidden; color: #fff; font-family: 'Malgun Gothic', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; touch-action: none; -webkit-user-select: none; user-select: none; }
         canvas { display: block; background: linear-gradient(to bottom, #050505, #110022); border: 2px solid #444; box-shadow: 0 0 25px rgba(138, 43, 226, 0.4); max-width: 100%; max-height: 100vh; cursor: crosshair; }
-        #ui { position: absolute; top: 15px; width: 90%; max-width: 440px; pointer-events: none; display: flex; justify-content: space-between; background: rgba(0,0,0,0.8); padding: 12px; border-radius: 10px; z-index: 10; font-size: 12px; border: 1px solid #8a2be2; }
+        
+        #ui { position: absolute; top: 15px; width: 90%; max-width: 440px; pointer-events: none; background: rgba(0,0,0,0.8); padding: 12px; border-radius: 10px; z-index: 10; border: 1px solid #8a2be2; }
+        .ui-top { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 8px; }
+        
+        #hp-bar-container { width: 100%; height: 10px; background: #333; border-radius: 5px; overflow: hidden; border: 1px solid #555; }
+        #hp-bar-fill { width: 100%; height: 100%; background: linear-gradient(90deg, #ff0000, #00ff00); transition: width 0.2s ease-out; }
+        
         #bomb-btn { position: absolute; bottom: 30px; right: 30px; width: 70px; height: 70px; background: rgba(255, 0, 0, 0.6); border: 3px solid #ff0000; border-radius: 50%; color: white; font-weight: bold; font-size: 14px; cursor: pointer; z-index: 20; display: flex; justify-content: center; align-items: center; box-shadow: 0 0 15px rgba(255, 0, 0, 0.5); pointer-events: auto; }
         #bomb-btn:active { background: rgba(255, 0, 0, 0.9); transform: scale(0.9); }
+        
         #upgrade-menu { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(10,0,20,0.95); padding: 25px; border: 3px solid #00ffff; display: none; text-align: center; z-index: 100; border-radius: 15px; width: 85%; max-width: 360px; }
         .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
         button { background: #1a1a1a; color: #00ffff; border: 2px solid #00ffff; padding: 12px; width: 100%; cursor: pointer; border-radius: 8px; font-weight: bold; font-size: 14px; pointer-events: auto; }
@@ -17,9 +24,13 @@
 </head>
 <body>
     <div id="ui">
-        <div>STAGE:<span id="stage-txt">1</span> | LIFE:<span id="life-txt" style="color:#ff3333">3</span></div>
-        <div>ARMOR:<span id="armor-txt" style="color:#ffff00">OFF</span> | BOMB:<span id="bomb-txt-ui">0</span></div>
-        <div>AMMO:<span id="ammo-txt">∞</span></div>
+        <div class="ui-top">
+            <div>STAGE: <span id="stage-txt">1</span> | BOMB: <span id="bomb-txt-ui">3</span></div>
+            <div>ARMOR: <span id="armor-txt" style="color:#ffff00">OFF</span> | AMMO: <span id="ammo-txt">∞</span></div>
+        </div>
+        <div id="hp-bar-container">
+            <div id="hp-bar-fill"></div>
+        </div>
     </div>
     
     <div id="bomb-btn" onmousedown="triggerMegaBomb()" ontouchstart="triggerMegaBomb()">BOMB</div>
@@ -56,7 +67,9 @@ function playSound(type) {
 let stage = 1, kills = 0, bombInventory = 3, armorTimer = 0, armorActive = false;
 let weaponType = 'Normal', ammo = 0, isPaused = false, gameOver = false, isShooting = false;
 let stars = Array.from({length: 30}, () => ({x: Math.random()*canvas.width, y: Math.random()*canvas.height, s: Math.random()*2+1}));
-let player = { x: 225, y: 700, w: 34, h: 40, hp: 5, maxHp: 5, life: 3, lastShot: 0 };
+
+// 플레이어 설정 (실제 체력 시스템)
+let player = { x: 225, y: 700, w: 34, h: 40, hp: 100, maxHp: 100, lastShot: 0 };
 let bullets = [], enemyBullets = [], enemies = [], activeItems = [];
 let keys = {};
 
@@ -101,7 +114,6 @@ function applyUpgrade(type) { weaponType = type; ammo = 60; isPaused = false; do
 function update() {
     if (isPaused || gameOver) return;
     
-    // 키보드 이동 로직 (전후좌우)
     let moveSpeed = 7;
     if (keys['ArrowLeft'] && player.x > 0) player.x -= moveSpeed;
     if (keys['ArrowRight'] && player.x < canvas.width - player.w) player.x += moveSpeed;
@@ -125,7 +137,10 @@ function update() {
             e.lastShot = Date.now();
         }
         if (Math.hypot(e.x - (player.x + player.w/2), e.y - (player.y + player.h/2)) < e.r + 15) {
-            if(!armorActive) { player.hp--; playSound('exp'); }
+            if(!armorActive) { 
+                player.hp -= 30; // 충돌 시 체력 대폭 감소
+                playSound('exp'); 
+            }
             enemies.splice(ei, 1);
         }
     });
@@ -141,7 +156,7 @@ function update() {
                 if (b.type !== 'laser') bullets.splice(bi, 1);
                 if (e.hp <= 0) {
                     enemies.splice(ei, 1); kills++; playSound('exp');
-                    if (Math.random() < 0.15) activeItems.push({ x: e.x, y: e.y, type: Math.random() < 0.7 ? 'bomb' : 'life' });
+                    if (Math.random() < 0.2) activeItems.push({ x: e.x, y: e.y, type: Math.random() < 0.3 ? 'life' : 'bomb' });
                     if (kills % 25 === 0) { isPaused = true; document.getElementById('upgrade-menu').style.display = 'block'; }
                     if (kills >= 50) { stage++; kills = 0; }
                 }
@@ -152,7 +167,11 @@ function update() {
     enemyBullets.forEach((eb, ebi) => {
         eb.y += 6 + stage;
         if (eb.x < player.x + player.w && eb.x + eb.w > player.x && eb.y < player.y + player.h && eb.y + eb.h > player.y) {
-            enemyBullets.splice(ebi, 1); if(!armorActive) { player.hp--; playSound('exp'); }
+            enemyBullets.splice(ebi, 1); 
+            if(!armorActive) { 
+                player.hp -= 10; // 총알 피격 시 체력 감소
+                playSound('exp'); 
+            }
         }
     });
 
@@ -160,14 +179,22 @@ function update() {
         item.y += 3;
         if (Math.hypot(item.x - (player.x+player.w/2), item.y - (player.y+player.h/2)) < 35) {
             if (item.type === 'bomb') { bombInventory++; armorTimer = 8; armorActive = true; }
-            else { player.life = Math.min(5, player.life + 1); player.hp = player.maxHp; }
+            else if (item.type === 'life') { player.hp = Math.min(player.maxHp, player.hp + 40); }
             activeItems.splice(i, 1); playSound('item');
         }
     });
 
-    if(player.hp <= 0) { player.life--; player.hp = player.maxHp; if(player.life < 0) gameOver = true; }
+    // 게임 오버 체크
+    if (player.hp <= 0) {
+        player.hp = 0;
+        gameOver = true;
+    }
+
+    // UI 업데이트
+    const hpFill = document.getElementById('hp-bar-fill');
+    hpFill.style.width = Math.max(0, (player.hp / player.maxHp * 100)) + "%";
+
     document.getElementById('stage-txt').innerText = stage;
-    document.getElementById('life-txt').innerText = player.life;
     document.getElementById('armor-txt').innerText = armorActive ? "ON" : "OFF";
     document.getElementById('bomb-txt-ui').innerText = bombInventory;
     document.getElementById('ammo-txt').innerText = (weaponType === 'Normal') ? '∞' : ammo;
@@ -175,7 +202,6 @@ function update() {
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // 별 배경
     ctx.fillStyle = '#fff';
     stars.forEach(s => { ctx.fillRect(s.x, s.y, s.s, s.s); s.y += s.s * 0.5; if(s.y > canvas.height) s.y = 0; });
 
@@ -186,8 +212,11 @@ function draw() {
         ctx.shadowBlur = 0;
     }
     
-    ctx.fillStyle = '#00ffff'; 
+    // 기체 색상 변화 (스테이지별)
+    const hue = (180 + (stage * 40)) % 360; 
+    ctx.fillStyle = `hsl(${hue}, 100%, 50%)`; 
     ctx.beginPath(); ctx.moveTo(player.x + player.w/2, player.y); ctx.lineTo(player.x + player.w, player.y + player.h); ctx.lineTo(player.x, player.y + player.h); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
 
     enemies.forEach(e => {
         ctx.fillStyle = e.color; ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI*2); ctx.fill();
@@ -207,19 +236,21 @@ function draw() {
     enemyBullets.forEach(eb => { ctx.fillStyle = '#f33'; ctx.fillRect(eb.x, eb.y, eb.w, eb.h); });
 
     activeItems.forEach(item => {
-        ctx.fillStyle = item.type === 'bomb' ? '#ff0' : '#0f0';
-        ctx.font = 'bold 16px Arial'; ctx.fillText(item.type==='bomb'?'[B]':'[H]', item.x-10, item.y);
+        ctx.fillStyle = item.type === 'life' ? '#0f0' : '#ff0';
+        ctx.font = 'bold 16px Arial'; ctx.fillText(item.type === 'life' ? '[H]' : '[B]', item.x-10, item.y);
     });
 
     if (gameOver) {
-        ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0,0,canvas.width, canvas.height);
-        ctx.fillStyle = '#fff'; ctx.font = '40px Impact'; ctx.textAlign="center";
+        ctx.fillStyle = 'rgba(0,0,0,0.8)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#ff0000'; ctx.font = '40px Impact'; ctx.textAlign="center";
         ctx.fillText('MISSION FAILED', canvas.width/2, canvas.height/2);
+        ctx.fillStyle = '#fff'; ctx.font = '20px Arial';
+        ctx.fillText('Click to Restart', canvas.width/2, canvas.height/2 + 50);
     }
 }
 
-// 마우스/터치 드래그 이동 지원 (전후좌우 자유 이동)
 function handleMove(e) {
+    if (gameOver) return;
     e.preventDefault();
     const rect = canvas.getBoundingClientRect();
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
