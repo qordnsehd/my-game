@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Virus Shooter - Life System Edition</title>
+    <title>Virus Shooter - Life & Bomb Edition</title>
     <style>
         body { margin: 0; background: #000; overflow: hidden; color: #fff; font-family: 'Malgun Gothic', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; touch-action: none; -webkit-user-select: none; user-select: none; }
         canvas { display: block; background: #050505; border: 2px solid #333; box-shadow: 0 0 20px rgba(138, 43, 226, 0.5); max-width: 100%; max-height: 100vh; cursor: crosshair; }
@@ -21,7 +21,7 @@
     
     <div id="upgrade-menu">
         <h2 style="color:#8a2be2; margin: 0; font-size: 20px;">무기 선택</h2>
-        <p style="font-size: 12px; margin: 5px 0 15px 0;">라이프를 지키며 바이러스를 섬멸하세요!</p>
+        <p style="font-size: 12px; margin: 5px 0 15px 0;">무기를 골라 보스를 물리치세요!</p>
         <div class="btn-grid">
             <button onclick="applyUpgrade('MachineGun')">🚀 머신건</button>
             <button onclick="applyUpgrade('Laser')">⚡ 레이저</button>
@@ -67,9 +67,17 @@ function drawCovidVirus(x, y, radius, color, isBoss) {
         ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(spikeX, spikeY); ctx.stroke();
         ctx.fillStyle = color; ctx.beginPath(); ctx.arc(spikeX, spikeY, radius * 0.3, 0, Math.PI * 2); ctx.fill();
     }
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.arc(x, y, radius*0.6, 0, Math.PI*2); ctx.fill();
 }
 
-window.addEventListener('keydown', e => { keys[e.code] = true; if(e.code === 'KeyZ') triggerMegaBomb(); });
+window.addEventListener('keydown', e => { 
+    keys[e.code] = true; 
+    if(e.code === 'KeyZ') triggerMegaBomb();
+    if(isPaused) {
+        if(e.code === 'ArrowLeft') applyUpgrade('MachineGun');
+        if(e.code === 'ArrowRight') applyUpgrade('Laser');
+    }
+});
 window.addEventListener('keyup', e => keys[e.code] = false);
 
 function handleMove(clientX) {
@@ -166,7 +174,7 @@ function update() {
         enemies.forEach((e, ei) => {
             let hit = b.type === 'homing' ? Math.sqrt((b.x-e.x)**2 + (b.y-e.y)**2) < e.r + 8 : (b.x < e.x + e.r && b.x + b.w > e.x - e.r && b.y < e.y + e.r && b.y + b.h > e.y - e.r);
             if (hit) {
-                e.hp -= (b.type === 'laser' ? 6 : 1); if (b.type !== 'laser') bullets.splice(bi, 1);
+                e.hp -= (b.type === 'laser' ? 6 : (b.type === 'homing' ? 4 : 1)); if (b.type !== 'laser') bullets.splice(bi, 1);
                 if (e.hp <= 0) { 
                     enemies.splice(ei, 1); kills++; score += e.isBoss ? 5000 : 150; playSound('exp');
                     if (Math.random() < 0.15) activeItems.push({ x: e.x, y: e.y, type: 'bomb' });
@@ -196,7 +204,6 @@ function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (armorActive) { ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(player.x + player.w/2, player.y + player.h/2, 45, 0, Math.PI*2); ctx.stroke(); }
     
-    // 플레이어 에너지 바
     ctx.fillStyle = '#555'; ctx.fillRect(player.x, player.y - 10, player.w, 5);
     ctx.fillStyle = '#0f0'; ctx.fillRect(player.x, player.y - 10, (player.hp/player.maxHp)*player.w, 5);
     
