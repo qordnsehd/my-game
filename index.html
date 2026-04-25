@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Virus Shooter Ultimate</title>
+<title>Virus Shooter Final</title>
 <style>
-html,body{margin:0;padding:0;background:#000;overflow:hidden;}
-canvas{display:block;margin:auto;background:linear-gradient(#050505,#110022);}
+body{margin:0;background:#000;overflow:hidden;}
+canvas{display:block;margin:auto;background:#050510;}
 #ui{
  position:absolute;top:10px;left:50%;
  transform:translateX(-50%);
@@ -14,242 +14,231 @@ canvas{display:block;margin:auto;background:linear-gradient(#050505,#110022);}
  background:rgba(0,0,0,0.7);
  padding:8px;border-radius:10px;
 }
+.overlay{
+ position:absolute;top:50%;left:50%;
+ transform:translate(-50%,-50%);
+ background:#111;padding:20px;
+ color:#fff;border:2px solid #0ff;
+ display:none;
+}
+button{margin:5px;padding:10px;}
 </style>
 </head>
 <body>
 
 <div id="ui">
-STAGE: <span id="stage-txt">1</span> |
-SCORE: <span id="score-txt">0</span> |
-COMBO: <span id="combo-txt">0</span>
-<br>
-HP: <span id="hp-txt">100</span>
+STAGE: <span id="stage">1</span> |
+SCORE: <span id="score">0</span> |
+COMBO: <span id="combo">0</span>
 </div>
 
-<canvas id="gameCanvas"></canvas>
+<div id="upgrade" class="overlay">
+<h3>무기 선택</h3>
+<button onclick="upgrade('machine')">⚡ 머신건</button>
+<button onclick="upgrade('laser')">🔦 레이저</button>
+<button onclick="upgrade('homing')">🎯 유도탄</button>
+<button onclick="upgrade('all')">🔥 종합</button>
+</div>
+
+<canvas id="c"></canvas>
 
 <script>
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
-canvas.width = 480;
-canvas.height = 800;
+const c=document.getElementById('c');
+const ctx=c.getContext('2d');
+c.width=480; c.height=800;
 
-// ===== 음악 (버그 수정 완료) =====
-const bgMusic = new Audio('music.mp3');
-bgMusic.loop = true;
-bgMusic.volume = 0.3;
-let musicStarted = false;
+// ===== 음악 =====
+const bgMusic=new Audio('music.mp3');
+bgMusic.loop=true;
+bgMusic.volume=0.3;
+let started=false;
 
-function startMusic(){
- if(!musicStarted){
+function startAudio(){
+ if(!started){
   bgMusic.play().catch(()=>{});
-  musicStarted = true;
+  audioCtx.resume();
+  started=true;
  }
 }
 
-// ===== 사운드 =====
-const audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-function playSound(f,t,d,v=0.05){
- try{
-  const o=audioCtx.createOscillator();
-  const g=audioCtx.createGain();
-  o.type=t;
-  o.frequency.value=f;
-  g.gain.value=v;
-  g.gain.exponentialRampToValueAtTime(0.01,audioCtx.currentTime+d);
-  o.connect(g); g.connect(audioCtx.destination);
-  o.start(); o.stop(audioCtx.currentTime+d);
- }catch(e){}
-}
+const audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+
+// ===== 플레이어 =====
+let player={
+ x:240,y:700,hp:100,
+ shield:0
+};
 
 // ===== 상태 =====
-let player={x:240,y:700,hp:100};
-let bullets=[], enemies=[], eBullets=[];
-let stage=1, kills=0;
-let score=0, combo=0, lastKillTime=0;
-let critChance=0.15;
-let isShooting=false, gameOver=false;
+let bullets=[],enemies=[],eBullets=[],items=[];
+let kills=0,score=0,combo=0,lastKill=0;
+
+// ===== 무기 =====
+let weapon={
+ type:'normal',
+ level:{machine:0,laser:0,homing:0}
+};
 
 // ===== 입력 =====
-canvas.addEventListener('mousedown',e=>{
- startMusic();
- if(gameOver) location.reload();
- isShooting=true;
- movePlayer(e);
+c.addEventListener('mousedown',e=>{
+ startAudio();
+ shooting=true;
+ move(e);
 });
-window.addEventListener('mousemove',e=>{
- if(isShooting) movePlayer(e);
-});
-window.addEventListener('mouseup',()=>isShooting=false);
+window.addEventListener('mousemove',e=>shooting&&move(e));
+window.addEventListener('mouseup',()=>shooting=false);
 
-function movePlayer(e){
- const rect=canvas.getBoundingClientRect();
- player.x=(e.clientX-rect.left);
- player.y=(e.clientY-rect.top);
+let shooting=false;
+function move(e){
+ const r=c.getBoundingClientRect();
+ player.x=e.clientX-r.left;
+ player.y=e.clientY-r.top;
+}
+
+// ===== 코로나 그리기 =====
+function drawVirus(x,y,r){
+ ctx.strokeStyle='#0f0';
+ for(let i=0;i<10;i++){
+  let a=Math.PI*2/10*i;
+  ctx.beginPath();
+  ctx.moveTo(x,y);
+  ctx.lineTo(x+Math.cos(a)*(r+10),y+Math.sin(a)*(r+10));
+  ctx.stroke();
+ }
+ ctx.beginPath();
+ ctx.arc(x,y,r,0,Math.PI*2);
+ ctx.fillStyle='#0a0';
+ ctx.fill();
 }
 
 // ===== 총 =====
 let lastShot=0;
 function shoot(){
- if(Date.now()-lastShot<200) return;
- bullets.push({x:player.x,y:player.y});
- playSound(400,'square',0.05);
- lastShot=Date.now();
+ let now=Date.now();
+ let speed=300/(weapon.level.machine+1);
+
+ if(now-lastShot>speed){
+  bullets.push({x:player.x,y:player.y,type:'normal'});
+  
+  if(weapon.level.laser>0){
+   bullets.push({x:player.x,y:player.y,type:'laser'});
+  }
+
+  if(weapon.level.homing>0){
+   bullets.push({x:player.x,y:player.y,type:'homing'});
+  }
+
+  lastShot=now;
+ }
 }
 
-// ===== 적 생성 =====
+// ===== 적 =====
 function spawnEnemy(){
  enemies.push({
   x:Math.random()*440+20,
   y:-20,
   r:20,
-  hp:2+stage*0.2,
+  hp:2,
   lastShoot:0
  });
 }
 
-// ===== 보스 =====
-function spawnBoss(){
- enemies.push({
-  x:240,y:100,
-  r:50,
-  hp:80+stage*20,
-  isBoss:true,
-  phase:1,
-  lastShoot:0
- });
+// ===== 아이템 =====
+function spawnItem(x,y){
+ items.push({x,y,type:'shield'});
+}
+
+// ===== 업그레이드 =====
+function upgrade(t){
+ if(t==='all'){
+  weapon.level.machine++;
+  weapon.level.laser++;
+  weapon.level.homing++;
+ }else{
+  weapon.level[t]++;
+ }
+ document.getElementById('upgrade').style.display='none';
 }
 
 // ===== 업데이트 =====
 function update(){
- if(gameOver) return;
+ if(shooting) shoot();
 
- if(isShooting) shoot();
-
- // 적 생성
  if(Math.random()<0.02) spawnEnemy();
 
- // 보스 등장
- if(kills>0 && kills%50===0 && !enemies.some(e=>e.isBoss)){
-  spawnBoss();
+ // 50킬 업그레이드
+ if(kills>0 && kills%50===0){
+  document.getElementById('upgrade').style.display='block';
+  kills++;
  }
 
- // 총알 이동
+ // 20킬 아이템
+ if(kills>0 && kills%20===0){
+  spawnItem(player.x,0);
+  kills++;
+ }
+
  bullets.forEach((b,bi)=>{
   b.y-=10;
 
   enemies.forEach((e,ei)=>{
    if(Math.hypot(b.x-e.x,b.y-e.y)<e.r){
 
-    // 🔥 크리티컬
-    let isCrit = Math.random()<critChance;
-    let dmg = isCrit?2:1;
-
+    let crit=Math.random()<0.15;
+    let dmg=crit?2:1;
     e.hp-=dmg;
 
-    if(isCrit) playSound(900,'square',0.1);
-
-    bullets.splice(bi,1);
-
     if(e.hp<=0){
-
-     // 🔥 콤보
      let now=Date.now();
-     if(now-lastKillTime<1500) combo++;
-     else combo=1;
-     lastKillTime=now;
+     combo=(now-lastKill<1500)?combo+1:1;
+     lastKill=now;
 
-     // 점수
-     score += (e.isBoss?2000:100) + combo*10;
-
+     score+=100+combo*10;
      kills++;
+
      enemies.splice(ei,1);
-     playSound(150,'square',0.1);
     }
+    bullets.splice(bi,1);
    }
   });
  });
 
- // 적 이동 & 공격
- enemies.forEach((e,ei)=>{
+ // 적
+ enemies.forEach(e=>{
+  e.y+=2;
 
-  if(e.isBoss){
-
-   // 🔥 보스 AI
-   if(e.hp<60) e.phase=2;
-   if(e.hp<30) e.phase=3;
-
-   if(e.phase===1){
-    e.x += Math.sin(Date.now()/300)*2;
-   }
-   else if(e.phase===2){
-    if(Date.now()-e.lastShoot>800){
-     for(let i=-2;i<=2;i++){
-      eBullets.push({x:e.x,y:e.y,vx:i*1.5,vy:4});
-     }
-     e.lastShoot=Date.now();
-    }
-   }
-   else{
-    e.x += Math.sin(Date.now()/100)*5;
-    if(Date.now()-e.lastShoot>400){
-     eBullets.push({
-      x:e.x,
-      y:e.y,
-      vx:(Math.random()-0.5)*4,
-      vy:6
-     });
-     e.lastShoot=Date.now();
-    }
-   }
-
-  }else{
-   e.y+=2;
-
-   // 🔥 공격 강화
-   if(Date.now()-e.lastShoot>1200){
-    eBullets.push({
-     x:e.x,
-     y:e.y,
-     vx:(Math.random()-0.5)*2,
-     vy:5
-    });
-    e.lastShoot=Date.now();
-   }
+  if(Date.now()-e.lastShoot>1000){
+   eBullets.push({x:e.x,y:e.y,vx:(Math.random()-0.5)*2,vy:4});
+   e.lastShoot=Date.now();
   }
-
-  if(e.y>800) enemies.splice(ei,1);
  });
 
- // 적 탄환
+ // 적탄
  eBullets.forEach((b,bi)=>{
   b.x+=b.vx;
   b.y+=b.vy;
 
-  if(b.y>800) eBullets.splice(bi,1);
-
-  if(
-   b.x>player.x-10 &&
-   b.x<player.x+10 &&
-   b.y>player.y-10 &&
-   b.y<player.y+10
-  ){
-   player.hp-=5;
+  if(Math.hypot(b.x-player.x,b.y-player.y)<15){
+   if(player.shield>0){
+    player.shield--;
+   }else{
+    player.hp-=5;
+   }
    eBullets.splice(bi,1);
-   playSound(100,'sine',0.1);
   }
  });
 
- if(player.hp<=0){
-  gameOver=true;
-  bgMusic.pause();
- }
+ // 아이템
+ items.forEach((it,ii)=>{
+  it.y+=2;
+  if(Math.hypot(it.x-player.x,it.y-player.y)<20){
+   player.shield=5;
+   items.splice(ii,1);
+  }
+ });
 
- // UI
- document.getElementById('stage-txt').innerText=stage;
- document.getElementById('score-txt').innerText=score;
- document.getElementById('combo-txt').innerText=combo;
- document.getElementById('hp-txt').innerText=player.hp;
+ document.getElementById('score').innerText=score;
+ document.getElementById('combo').innerText=combo;
 }
 
 // ===== 그리기 =====
@@ -264,35 +253,36 @@ function draw(){
  ctx.lineTo(player.x-10,player.y+10);
  ctx.fill();
 
- // 총알
- ctx.fillStyle='yellow';
+ // 방어막
+ if(player.shield>0){
+  ctx.strokeStyle='#0ff';
+  ctx.beginPath();
+  ctx.arc(player.x,player.y,25,0,Math.PI*2);
+  ctx.stroke();
+ }
+
  bullets.forEach(b=>{
+  ctx.fillStyle=b.type==='laser'?'#f0f':'#ff0';
   ctx.fillRect(b.x,b.y,4,10);
  });
 
- // 적
  enemies.forEach(e=>{
-  ctx.fillStyle=e.isBoss?'red':'green';
-  ctx.beginPath();
-  ctx.arc(e.x,e.y,e.r,0,Math.PI*2);
-  ctx.fill();
+  drawVirus(e.x,e.y,e.r);
  });
 
- // 적탄
- ctx.fillStyle='orange';
  eBullets.forEach(b=>{
+  ctx.fillStyle='red';
   ctx.beginPath();
   ctx.arc(b.x,b.y,4,0,Math.PI*2);
   ctx.fill();
  });
 
- // 게임오버
- if(gameOver){
-  ctx.fillStyle='white';
-  ctx.font='30px Arial';
-  ctx.textAlign='center';
-  ctx.fillText('GAME OVER',240,400);
- }
+ items.forEach(it=>{
+  ctx.fillStyle='#0af';
+  ctx.beginPath();
+  ctx.arc(it.x,it.y,10,0,Math.PI*2);
+  ctx.fill();
+ });
 }
 
 // ===== 루프 =====
@@ -302,7 +292,6 @@ function loop(){
  requestAnimationFrame(loop);
 }
 loop();
-
 </script>
 </body>
 </html>
