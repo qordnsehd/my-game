@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Virus Shooter - Cody Boss Edition</title>
+    <title>Virus Shooter - Cody 100 Stages</title>
     <style>
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000 !important; overflow: hidden; }
         #game-container { position: relative; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; background: #000; }
@@ -14,13 +14,13 @@
         #hp-bar-container { width: 100%; height: 8px; background: #333; border-radius: 4px; overflow: hidden; }
         #hp-bar-fill { width: 100%; height: 100%; background: linear-gradient(90deg, #ff0000, #00ff00); transition: width 0.2s; }
         
-        .mobile-btn { position: absolute; width: 60px; height: 60px; border-radius: 50%; color: white; font-weight: bold; font-size: 11px; cursor: pointer; z-index: 20; display: none; justify-content: center; align-items: center; border: 2px solid #fff; pointer-events: auto; }
+        .mobile-btn { position: absolute; width: 55px; height: 55px; border-radius: 50%; color: white; font-weight: bold; font-size: 10px; cursor: pointer; z-index: 20; display: none; justify-content: center; align-items: center; border: 2px solid #fff; pointer-events: auto; }
         @media screen and (max-width: 1024px) { .mobile-btn { display: flex; } }
         #bomb-btn { bottom: 20px; right: 20px; background: rgba(255, 0, 0, 0.6); border-color: #ff0000; }
         #pause-btn { bottom: 20px; left: 20px; background: rgba(0, 255, 0, 0.4); border-color: #00ff00; }
-        #info-btn { top: 120px; right: 20px; width: 40px; height: 40px; background: rgba(255, 255, 255, 0.2); border-color: #fff; }
+        #info-btn { top: 120px; right: 20px; width: 35px; height: 35px; background: rgba(255, 255, 255, 0.2); border-color: #fff; }
 
-        .overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(10,0,20,0.95); padding: 20px; border: 2px solid #00ffff; display: none; text-align: center; z-index: 100; border-radius: 15px; width: 80%; max-width: 320px; color: #fff; }
+        .overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(10,0,20,0.95); padding: 20px; border: 2px solid #00ffff; display: none; text-align: center; z-index: 100; border-radius: 15px; width: 80%; max-width: 320px; color: #fff; font-family: sans-serif; }
         button { background: #1a1a1a; color: #00ffff; border: 1px solid #00ffff; padding: 10px; cursor: pointer; border-radius: 8px; font-weight: bold; margin: 5px; }
     </style>
 </head>
@@ -28,21 +28,32 @@
     <div id="game-container">
         <div id="ui">
             <div class="ui-top">
-                <div>STAGE: <span id="stage-txt">1</span> | BOMB: <span id="bomb-txt-ui">3</span></div>
-                <div>WEAPON: <span id="ammo-txt">Normal</span></div>
+                <div>STAGE: <span id="stage-txt">1</span> / 100 | BOMB: <span id="bomb-txt-ui">3</span></div>
+                <div>WEAPON: <span id="ammo-txt">Normal</span> | <span id="shield-txt" style="color:#0af">SHIELD OFF</span></div>
             </div>
             <div id="hp-bar-container"><div id="hp-bar-fill"></div></div>
         </div>
         
-        <div id="pause-btn" class="mobile-btn" onclick="togglePause()">PAUSE</div>
-        <div id="bomb-btn" class="mobile-btn" onclick="triggerMegaBomb()">BOMB</div>
-        <div id="info-btn" class="mobile-btn" onclick="toggleInfo()">?</div>
+        <div id="pause-btn" class="mobile-btn" onclick="togglePause()">PAUSE(P)</div>
+        <div id="bomb-btn" class="mobile-btn" onclick="triggerMegaBomb()">BOMB(Z)</div>
+        <div id="info-btn" class="mobile-btn" onclick="toggleInfo()">HELP(H)</div>
 
         <div id="upgrade-menu" class="overlay">
             <h3>SELECT UPGRADE</h3>
             <button onclick="applyUpgrade('MachineGun')">⚡ 머신건</button>
             <button onclick="applyUpgrade('Laser')">🔦 레이저</button>
             <button onclick="applyUpgrade('Homing')">🎯 유도 미사일</button>
+        </div>
+
+        <div id="info-menu" class="overlay">
+            <h3>HELP & CONTROLS</h3>
+            <p style="font-size: 13px; text-align: left;">
+                • P: 일시정지 / Z: 폭탄 / H: 도움말<br>
+                • 20킬 마다 랜덤 아이템 드랍<br>
+                • 50킬 마다 중간 보스 등장<br>
+                • 아이템: A(방어막), L(생명력 회복)
+            </p>
+            <button onclick="toggleInfo()">CLOSE</button>
         </div>
 
         <canvas id="gameCanvas"></canvas>
@@ -64,13 +75,23 @@ function playSound(f, t, d, v=0.05) {
     } catch(e) {}
 }
 
-let stage = 1, kills = 0, totalKills = 0, bombInventory = 3, isPaused = false, gameOver = false, isShooting = false;
+let stage = 1, kills = 0, totalKills = 0, itemCounter = 0, bombInventory = 3, isPaused = false, gameOver = false, isShooting = false;
 let weaponType = 'Normal', ammo = 0, bossActive = false;
-let player = { x: 225, y: 700, w: 34, h: 40, hp: 100, lastShot: 0, lastHoming: 0 };
-let bullets = [], enemies = [], eBullets = [], homingMissiles = [];
+let player = { x: 225, y: 700, w: 34, h: 40, hp: 100, lastShot: 0, lastHoming: 0, hasShield: false };
+let bullets = [], enemies = [], eBullets = [], homingMissiles = [], items = [];
 let stars = Array.from({length: 30}, () => ({x: Math.random()*GAME_W, y: Math.random()*GAME_H, s: Math.random()*2+1}));
 
+// --- 키보드 제어 ---
+window.addEventListener('keydown', (e) => {
+    const key = e.key.toLowerCase();
+    if (key === 'p') togglePause();
+    if (key === 'z') triggerMegaBomb();
+    if (key === 'h') toggleInfo();
+});
+
 function togglePause() { if(!gameOver) { isPaused = !isPaused; } }
+function toggleInfo() { if(!gameOver) { isPaused = !isPaused; document.getElementById('info-menu').style.display = isPaused ? 'block' : 'none'; } }
+
 function triggerMegaBomb() {
     if (bombInventory > 0 && !isPaused && !gameOver) {
         bombInventory--; enemies = []; eBullets = []; playSound(100, 'square', 0.5);
@@ -80,24 +101,24 @@ function triggerMegaBomb() {
 
 function applyUpgrade(t) { weaponType = t; ammo = 50; isPaused = false; document.getElementById('upgrade-menu').style.display = 'none'; }
 
-// 코로나 바이러스 모양 그리기 함수
+function spawnItem(x, y, type) {
+    items.push({ x: x, y: y, type: type, r: 15, vy: 2 });
+}
+
 function drawVirus(x, y, r, color, spikes=8) {
     ctx.fillStyle = color;
     for(let i=0; i<spikes; i++) {
         let angle = (Math.PI*2/spikes)*i;
-        ctx.beginPath();
-        ctx.moveTo(x, y);
+        ctx.beginPath(); ctx.moveTo(x, y);
         ctx.lineTo(x + Math.cos(angle)*(r+10), y + Math.sin(angle)*(r+10));
         ctx.lineWidth = 4; ctx.strokeStyle = color; ctx.stroke();
     }
     ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.beginPath(); ctx.arc(x-r/3, y-r/3, r/4, 0, Math.PI*2); ctx.fill();
 }
 
 function update() {
     if (isPaused || gameOver) return;
 
-    // 플레이어 사격
     if (isShooting) {
         const now = Date.now();
         let delay = (weaponType === 'MachineGun') ? 80 : 300;
@@ -113,53 +134,54 @@ function update() {
         if (ammo <= 0) weaponType = 'Normal';
     }
 
-    // 보스 소환 로직 (50킬 마다)
-    if (kills >= 50 && !bossActive) {
+    if (kills >= 50 && !bossActive && stage <= 100) {
         bossActive = true;
-        enemies.push({ x: GAME_W/2, y: -100, r: 60, hp: 50 + (stage*10), speedY: 1, isBoss: true, vx: 2, lastShoot: 0 });
+        enemies.push({ x: GAME_W/2, y: -100, r: 60, hp: 50 + (stage*15), speedY: 1, isBoss: true, vx: 2 + (stage/20), lastShoot: 0 });
     }
 
-    // 적기 생성 (보스 없을 때만)
-    if (!bossActive && Math.random() < 0.02 + (stage*0.005)) {
-        enemies.push({ x: 30 + Math.random()*(GAME_W-60), y: -50, r: 20, hp: 1, speedY: 2 + (stage*0.2), lastShoot: 0 });
+    if (!bossActive && Math.random() < 0.02 + (stage*0.002)) {
+        enemies.push({ x: 30 + Math.random()*(GAME_W-60), y: -50, r: 20, hp: 1 + Math.floor(stage/25), speedY: 2 + (stage*0.05), lastShoot: 0 });
     }
 
-    // 적기 및 보스 행동
     enemies.forEach((e, ei) => {
         if (e.isBoss) {
             if (e.y < 150) e.y += e.speedY;
-            e.x += e.vx;
-            if (e.x < 60 || e.x > GAME_W-60) e.vx *= -1;
-            // 보스 사격
-            if (Date.now() - e.lastShoot > 1500 - (stage*100)) {
-                for(let i=-1; i<=1; i++) eBullets.push({x: e.x, y: e.y+e.r, vx: i*2, vy: 4 + stage});
+            e.x += e.vx; if (e.x < 60 || e.x > GAME_W-60) e.vx *= -1;
+            if (Date.now() - e.lastShoot > Math.max(500, 1500 - (stage*50))) {
+                for(let i=-1; i<=1; i++) eBullets.push({x: e.x, y: e.y+e.r, vx: i*2, vy: 4 + (stage/10)});
                 e.lastShoot = Date.now();
             }
         } else {
-            e.y += e.speedY;
-            if (e.y > GAME_H) enemies.splice(ei, 1);
-            // 일반 적기 사격
+            e.y += e.speedY; if (e.y > GAME_H) enemies.splice(ei, 1);
             if (Date.now() - e.lastShoot > 2000 && Math.random() < 0.01) {
-                eBullets.push({x: e.x, y: e.y+e.r, vx: 0, vy: 5 + stage});
-                e.lastShoot = Date.now();
+                eBullets.push({x: e.x, y: e.y+e.r, vx: 0, vy: 5 + (stage/20)}); e.lastShoot = Date.now();
             }
         }
-        // 플레이어와 충돌
         if (Math.hypot(e.x - (player.x+17), e.y - (player.y+20)) < e.r + 15) {
-            player.hp -= 20; if(!e.isBoss) enemies.splice(ei, 1);
+            if(player.hasShield) { player.hasShield = false; } else { player.hp -= 20; }
+            if(!e.isBoss) enemies.splice(ei, 1);
         }
     });
 
-    // 적 총알 이동
     eBullets.forEach((eb, ebi) => {
         eb.x += eb.vx; eb.y += eb.vy;
         if (eb.y > GAME_H) eBullets.splice(ebi, 1);
         if (eb.x > player.x && eb.x < player.x+34 && eb.y > player.y && eb.y < player.y+40) {
-            player.hp -= 5; eBullets.splice(ebi, 1); playSound(150, 'sine', 0.1);
+            if(player.hasShield) { player.hasShield = false; } else { player.hp -= 5; }
+            eBullets.splice(ebi, 1); playSound(150, 'sine', 0.1);
         }
     });
 
-    // 내 총알 충돌
+    items.forEach((it, iti) => {
+        it.y += it.vy;
+        if (it.y > GAME_H) items.splice(iti, 1);
+        if (Math.hypot(it.x - (player.x+17), it.y - (player.y+20)) < it.r + 20) {
+            if(it.type === 'shield') player.hasShield = true;
+            if(it.type === 'hp') player.hp = Math.min(100, player.hp + 30);
+            items.splice(iti, 1); playSound(800, 'sine', 0.2);
+        }
+    });
+
     bullets.forEach((b, bi) => {
         b.y -= (b.type === 'laser' ? 25 : 15);
         if (b.y < -50) bullets.splice(bi, 1);
@@ -167,28 +189,30 @@ function update() {
             if (Math.hypot(b.x - e.x, b.y - e.y) < e.r) {
                 e.hp--; if(b.type !== 'laser') bullets.splice(bi, 1);
                 if (e.hp <= 0) {
-                    if (e.isBoss) { bossActive = false; stage++; kills = 0; }
-                    else { kills++; totalKills++; }
+                    if (e.isBoss) { 
+                        bossActive = false; stage++; kills = 0; 
+                        spawnItem(e.x - 20, e.y, 'shield'); spawnItem(e.x + 20, e.y, 'hp');
+                    } else { 
+                        kills++; totalKills++; itemCounter++;
+                        if(itemCounter >= 20) { spawnItem(e.x, e.y, Math.random() > 0.5 ? 'shield' : 'hp'); itemCounter = 0; }
+                    }
                     enemies.splice(ei, 1); playSound(200, 'square', 0.1);
                 }
             }
         });
     });
 
-    // 유도 미사일 충돌
     homingMissiles.forEach((m, mi) => {
         if (enemies.length > 0) {
-            let t = enemies[0];
-            let dist = Math.hypot(t.x-m.x, t.y-m.y);
+            let t = enemies[0]; let dist = Math.hypot(t.x-m.x, t.y-m.y);
             m.x += (t.x-m.x)/dist * 8; m.y += (t.y-m.y)/dist * 8;
         } else m.y -= 8;
-        
         enemies.forEach((e, ei) => {
             if (Math.hypot(m.x-e.x, m.y-e.y) < e.r + 5) {
                 e.hp -= 5; homingMissiles.splice(mi, 1);
                 if (e.hp <= 0) {
-                    if (e.isBoss) { bossActive = false; stage++; kills = 0; }
-                    else { kills++; totalKills++; }
+                    if (e.isBoss) { bossActive = false; stage++; kills = 0; spawnItem(e.x-20, e.y, 'shield'); spawnItem(e.x+20, e.y, 'hp'); }
+                    else { kills++; totalKills++; itemCounter++; if(itemCounter >= 20) { spawnItem(e.x, e.y, Math.random() > 0.5 ? 'shield' : 'hp'); itemCounter = 0; } }
                     enemies.splice(ei, 1);
                 }
             }
@@ -197,25 +221,40 @@ function update() {
 
     if (totalKills > 0 && totalKills % 25 === 0) { totalKills++; isPaused = true; document.getElementById('upgrade-menu').style.display = 'block'; }
     if (player.hp <= 0) gameOver = true;
+    
     document.getElementById('hp-bar-fill').style.width = player.hp + "%";
+    document.getElementById('stage-txt').innerText = stage;
+    document.getElementById('ammo-txt').innerText = weaponType + (weaponType!=='Normal' ? ` (${ammo})` : "");
+    document.getElementById('shield-txt').innerText = player.hasShield ? "SHIELD ON" : "SHIELD OFF";
+    document.getElementById('shield-txt').style.color = player.hasShield ? "#0ff" : "#555";
 }
 
 function draw() {
     ctx.clearRect(0, 0, GAME_W, GAME_H);
     ctx.fillStyle = '#fff'; stars.forEach(s => { ctx.fillRect(s.x, s.y, s.s, s.s); s.y += 0.5; if(s.y > GAME_H) s.y = 0; });
     
-    // 플레이어
+    if(player.hasShield) {
+        ctx.strokeStyle = '#0af'; ctx.lineWidth = 3; ctx.beginPath();
+        ctx.arc(player.x+17, player.y+20, 40, 0, Math.PI*2); ctx.stroke();
+    }
+
     ctx.fillStyle = (weaponType==='MachineGun')?'#ff0':(weaponType==='Laser')?'#f0f':'#0ff';
     ctx.beginPath(); ctx.moveTo(player.x+17, player.y); ctx.lineTo(player.x+34, player.y+40); ctx.lineTo(player.x, player.y+40); ctx.fill();
     
-    // 적기 (코로나 스타일)
     enemies.forEach(e => {
         let color = e.isBoss ? '#f00' : '#0f0';
         drawVirus(e.x, e.y, e.r, color, e.isBoss ? 12 : 8);
-        if(e.isBoss) { // 보스 체력바
+        if(e.isBoss) {
             ctx.fillStyle = '#333'; ctx.fillRect(e.x-30, e.y-e.r-20, 60, 5);
-            ctx.fillStyle = '#f00'; ctx.fillRect(e.x-30, e.y-e.r-20, 60*(e.hp/(50+stage*10)), 5);
+            ctx.fillStyle = '#f00'; ctx.fillRect(e.x-30, e.y-e.r-20, 60*(e.hp/(50+stage*15)), 5);
         }
+    });
+
+    items.forEach(it => {
+        ctx.fillStyle = it.type === 'shield' ? '#0af' : '#f06';
+        ctx.beginPath(); ctx.arc(it.x, it.y, it.r, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 16px Arial'; ctx.textAlign='center';
+        ctx.fillText(it.type === 'shield' ? 'A' : 'L', it.x, it.y+6);
     });
 
     bullets.forEach(b => { ctx.fillStyle = (b.type==='laser')?'#f0f':'#ff0'; ctx.fillRect(b.x, b.y, b.w, b.h); });
@@ -224,9 +263,9 @@ function draw() {
 
     if (gameOver) {
         ctx.fillStyle = 'rgba(0,0,0,0.8)'; ctx.fillRect(0,0,GAME_W, GAME_H);
-        ctx.fillStyle = 'white'; ctx.textAlign='center'; ctx.font='20px Arial';
-        ctx.fillText('VIRUS INFECTION COMPLETE', GAME_W/2, GAME_H/2);
-        ctx.fillText('Click to Reboot', GAME_W/2, GAME_H/2+40);
+        ctx.fillStyle = 'white'; ctx.textAlign='center'; ctx.font='24px Arial';
+        ctx.fillText('MISSION FAILED', GAME_W/2, GAME_H/2);
+        ctx.font='16px Arial'; ctx.fillText('Click to Restart', GAME_W/2, GAME_H/2+40);
     }
 }
 
