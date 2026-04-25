@@ -3,109 +3,125 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Virus Shooter - Cody Real Survival</title>
+    <title>Virus Shooter - Cody Blog Edition</title>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; color: #fff; font-family: 'Malgun Gothic', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; touch-action: none; -webkit-user-select: none; user-select: none; }
-        canvas { display: block; background: linear-gradient(to bottom, #050505, #110022); border: 2px solid #444; box-shadow: 0 0 25px rgba(138, 43, 226, 0.4); max-width: 100%; max-height: 100vh; cursor: crosshair; }
+        /* 블로그 본문 안에서 잘리지 않도록 body와 html 설정을 최소화 */
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
         
-        #ui { position: absolute; top: 15px; width: 90%; max-width: 440px; pointer-events: none; background: rgba(0,0,0,0.8); padding: 12px; border-radius: 10px; z-index: 10; border: 1px solid #8a2be2; }
-        .ui-top { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 8px; }
+        /* 컨테이너를 만들어 화면에 중앙 배치 */
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* 캔버스가 비율을 유지하며 부모 요소에 꽉 차도록 설정 */
+        canvas {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain; /* 비율 유지하며 꽉 채움 */
+            background: linear-gradient(to bottom, #050505, #110022);
+            border: 1px solid #444;
+            cursor: crosshair;
+        }
         
-        #hp-bar-container { width: 100%; height: 10px; background: #333; border-radius: 5px; overflow: hidden; border: 1px solid #555; }
-        #hp-bar-fill { width: 100%; height: 100%; background: linear-gradient(90deg, #ff0000, #00ff00); transition: width 0.2s ease-out; }
+        #ui { position: absolute; top: 10px; width: 85%; max-width: 400px; pointer-events: none; background: rgba(0,0,0,0.8); padding: 10px; border-radius: 10px; z-index: 10; border: 1px solid #8a2be2; font-family: sans-serif; }
+        .ui-top { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 5px; color: #fff; }
+        #hp-bar-container { width: 100%; height: 8px; background: #333; border-radius: 4px; overflow: hidden; }
+        #hp-bar-fill { width: 100%; height: 100%; background: linear-gradient(90deg, #ff0000, #00ff00); transition: width 0.2s; }
         
-        #bomb-btn { position: absolute; bottom: 30px; right: 30px; width: 70px; height: 70px; background: rgba(255, 0, 0, 0.6); border: 3px solid #ff0000; border-radius: 50%; color: white; font-weight: bold; font-size: 14px; cursor: pointer; z-index: 20; display: flex; justify-content: center; align-items: center; box-shadow: 0 0 15px rgba(255, 0, 0, 0.5); pointer-events: auto; }
-        #bomb-btn:active { background: rgba(255, 0, 0, 0.9); transform: scale(0.9); }
+        #bomb-btn { position: absolute; bottom: 20px; right: 20px; width: 60px; height: 60px; background: rgba(255, 0, 0, 0.6); border: 2px solid #ff0000; border-radius: 50%; color: white; font-weight: bold; font-size: 12px; cursor: pointer; z-index: 20; display: flex; justify-content: center; align-items: center; }
         
-        #upgrade-menu { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(10,0,20,0.95); padding: 25px; border: 3px solid #00ffff; display: none; text-align: center; z-index: 100; border-radius: 15px; width: 85%; max-width: 360px; }
+        #upgrade-menu { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(10,0,20,0.95); padding: 20px; border: 2px solid #00ffff; display: none; text-align: center; z-index: 100; border-radius: 15px; width: 70%; max-width: 300px; }
         .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
-        button { background: #1a1a1a; color: #00ffff; border: 2px solid #00ffff; padding: 12px; width: 100%; cursor: pointer; border-radius: 8px; font-weight: bold; font-size: 14px; pointer-events: auto; }
+        button { background: #1a1a1a; color: #00ffff; border: 1px solid #00ffff; padding: 10px; cursor: pointer; border-radius: 8px; font-size: 12px; }
     </style>
 </head>
 <body>
-    <div id="ui">
-        <div class="ui-top">
-            <div>STAGE: <span id="stage-txt">1</span> | BOMB: <span id="bomb-txt-ui">3</span></div>
-            <div>ARMOR: <span id="armor-txt" style="color:#ffff00">OFF</span> | AMMO: <span id="ammo-txt">∞</span></div>
+    <div id="game-container">
+        <div id="ui">
+            <div class="ui-top">
+                <div>STAGE: <span id="stage-txt">1</span> | BOMB: <span id="bomb-txt-ui">3</span></div>
+                <div>AMMO: <span id="ammo-txt">∞</span></div>
+            </div>
+            <div id="hp-bar-container"><div id="hp-bar-fill"></div></div>
         </div>
-        <div id="hp-bar-container">
-            <div id="hp-bar-fill"></div>
-        </div>
-    </div>
-    
-    <div id="bomb-btn" onmousedown="triggerMegaBomb()" ontouchstart="triggerMegaBomb()">BOMB</div>
+        
+        <div id="bomb-btn" onmousedown="triggerMegaBomb()" ontouchstart="triggerMegaBomb()">BOMB</div>
 
-    <div id="upgrade-menu">
-        <h2 style="color:#00ffff; margin: 0; font-size: 22px;">SYSTEM UPGRADE</h2>
-        <div class="btn-grid">
-            <button onclick="applyUpgrade('MachineGun')">⚡ 머신건</button>
-            <button onclick="applyUpgrade('Laser')">🔦 레이저</button>
-            <button onclick="applyUpgrade('Homing')" style="grid-column: 1 / -1; border-color: #ff4500; color: #ff4500;">🎯 유도 미사일</button>
+        <div id="upgrade-menu">
+            <h2 style="color:#00ffff; margin: 0; font-size: 18px;">UPGRADE</h2>
+            <div class="btn-grid">
+                <button onclick="applyUpgrade('MachineGun')">⚡ 머신건</button>
+                <button onclick="applyUpgrade('Laser')">🔦 레이저</button>
+                <button onclick="applyUpgrade('Homing')" style="grid-column: 1 / -1;">🎯 유도 미사일</button>
+            </div>
         </div>
-    </div>
 
-    <canvas id="gameCanvas"></canvas>
+        <canvas id="gameCanvas"></canvas>
+    </div>
 
 <script>
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-canvas.width = 480; canvas.height = 800;
+
+// 게임 내부 논리 좌표는 고정 (계산 편의성)
+const GAME_W = 480;
+const GAME_H = 800;
+canvas.width = GAME_W;
+canvas.height = GAME_H;
 
 let audioCtx = null;
 function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
 
 function playSound(type) {
     if (!audioCtx) return;
-    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const now = audioCtx.currentTime;
     const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
     osc.connect(gain); gain.connect(audioCtx.destination);
-    const now = audioCtx.currentTime;
-    if (type === 'shoot') { osc.type = 'triangle'; osc.frequency.setValueAtTime(500, now); osc.frequency.exponentialRampToValueAtTime(100, now+0.1); gain.gain.setValueAtTime(0.04, now); osc.start(); osc.stop(now+0.1); }
-    else if (type === 'exp') { osc.type = 'square'; osc.frequency.setValueAtTime(80, now); gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now+0.2); osc.start(); osc.stop(now+0.2); }
+    if (type === 'shoot') { osc.frequency.setValueAtTime(500, now); gain.gain.setValueAtTime(0.02, now); osc.stop(now+0.1); }
+    else if (type === 'exp') { osc.frequency.setValueAtTime(100, now); gain.gain.setValueAtTime(0.05, now); osc.stop(now+0.2); }
+    osc.start();
 }
 
 let stage = 1, kills = 0, bombInventory = 3, armorTimer = 0, armorActive = false;
 let weaponType = 'Normal', ammo = 0, isPaused = false, gameOver = false, isShooting = false;
-let stars = Array.from({length: 30}, () => ({x: Math.random()*canvas.width, y: Math.random()*canvas.height, s: Math.random()*2+1}));
-
-// 플레이어 설정 (실제 체력 시스템)
+let stars = Array.from({length: 30}, () => ({x: Math.random()*GAME_W, y: Math.random()*GAME_H, s: Math.random()*2+1}));
 let player = { x: 225, y: 700, w: 34, h: 40, hp: 100, maxHp: 100, lastShot: 0 };
-let bullets = [], enemyBullets = [], enemies = [], activeItems = [];
-let keys = {};
+let bullets = [], enemyBullets = [], enemies = [], activeItems = [], keys = {};
 
 function spawnEnemy(isBoss = false) {
     const size = isBoss ? 70 : 25;
     const hp = isBoss ? 50 + (stage * 20) : 1 + Math.floor(stage/3);
     enemies.push({
-        x: size + Math.random() * (canvas.width - size * 2), y: -100,
+        x: size + Math.random() * (GAME_W - size * 2), y: -100,
         r: size, hp: hp, maxHp: hp, speedY: isBoss ? 0.5 : 1.5 + (stage * 0.2),
-        baseX: Math.random() * canvas.width, sinMod: Math.random() * 2,
-        isBoss: isBoss, lastShot: 0, shootInterval: isBoss ? 800 : 2500,
+        sinMod: Math.random() * 2, isBoss: isBoss, lastShot: 0, shootInterval: isBoss ? 800 : 2500,
         color: isBoss ? '#ff0055' : `hsl(${180 + Math.random() * 60}, 80%, 50%)`
     });
 }
 
 function shoot() {
     const now = Date.now();
-    let delay = weaponType === 'MachineGun' ? 80 : (weaponType === 'Laser' ? 500 : (weaponType === 'Homing' ? 400 : 300));
+    let delay = weaponType === 'MachineGun' ? 80 : (weaponType === 'Laser' ? 500 : 300);
     if (now - player.lastShot > delay) {
-        if (weaponType === 'Laser') { bullets.push({ x: player.x + player.w/2 - 25, y: player.y - 40, w: 50, h: 40, type: 'laser' }); ammo--; }
-        else if (weaponType === 'Homing') { bullets.push({ x: player.x+player.w/2, y: player.y, r: 8, type: 'homing' }); ammo--; }
-        else { bullets.push({ x: player.x + player.w/2 - 3, y: player.y, w: 6, h: 18, type: 'normal' }); if(weaponType !== 'Normal') ammo--; }
-        playSound('shoot');
-        if (weaponType !== 'Normal' && ammo <= 0) weaponType = 'Normal';
-        player.lastShot = now;
+        if (weaponType === 'Laser') bullets.push({ x: player.x-8, y: player.y-40, w: 50, h: 40, type: 'laser' });
+        else bullets.push({ x: player.x + player.w/2 - 3, y: player.y, w: 6, h: 18, type: 'normal' });
+        if(weaponType !== 'Normal') { ammo--; if(ammo<=0) weaponType='Normal'; }
+        player.lastShot = now; playSound('shoot');
     }
 }
 
 function triggerMegaBomb() {
-    initAudio();
-    if (bombInventory > 0 && !gameOver && !isPaused) {
-        bombInventory--; playSound('exp');
-        enemies.forEach(e => { e.hp -= 25; if(e.hp <= 0) kills++; });
+    if (bombInventory > 0 && !gameOver) {
+        bombInventory--; 
+        enemies.forEach(e => { e.hp -= 50; if(e.hp<=0) kills++; });
         enemies = enemies.filter(e => e.hp > 0);
         enemyBullets = [];
-        ctx.fillStyle = "white"; ctx.fillRect(0,0,canvas.width, canvas.height);
+        playSound('exp');
     }
 }
 
@@ -113,158 +129,86 @@ function applyUpgrade(type) { weaponType = type; ammo = 60; isPaused = false; do
 
 function update() {
     if (isPaused || gameOver) return;
-    
-    let moveSpeed = 7;
-    if (keys['ArrowLeft'] && player.x > 0) player.x -= moveSpeed;
-    if (keys['ArrowRight'] && player.x < canvas.width - player.w) player.x += moveSpeed;
-    if (keys['ArrowUp'] && player.y > 0) player.y -= moveSpeed;
-    if (keys['ArrowDown'] && player.y < canvas.height - player.h) player.y += moveSpeed;
-    
-    if (isShooting || keys['Space']) shoot();
+    if (isShooting) shoot();
     if (armorTimer > 0) { armorTimer -= 1/60; if (armorTimer <= 0) armorActive = false; }
-
-    if (Math.random() < 0.02 + (stage*0.005)) {
+    if (Math.random() < 0.02) {
         if (kills >= 30 && !enemies.some(e => e.isBoss)) spawnEnemy(true);
-        else if (enemies.length < 5 + stage) spawnEnemy(false);
+        else if (enemies.length < 5) spawnEnemy(false);
     }
-
     enemies.forEach((e, ei) => {
         e.y += e.speedY; 
-        if (!e.isBoss) e.x += Math.sin(e.y * 0.02 + e.sinMod) * 2;
-        if (e.y > canvas.height + 100) enemies.splice(ei, 1);
-        if (Date.now() - e.lastShot > e.shootInterval) {
-            enemyBullets.push({ x: e.x, y: e.y + e.r, w: 6, h: 12 });
-            e.lastShot = Date.now();
-        }
-        if (Math.hypot(e.x - (player.x + player.w/2), e.y - (player.y + player.h/2)) < e.r + 15) {
-            if(!armorActive) { 
-                player.hp -= 30; // 충돌 시 체력 대폭 감소
-                playSound('exp'); 
-            }
+        if (e.y > GAME_H + 100) enemies.splice(ei, 1);
+        if (Math.hypot(e.x - (player.x + 17), e.y - (player.y + 20)) < e.r + 15) {
+            if(!armorActive) player.hp -= 20;
             enemies.splice(ei, 1);
         }
     });
-
+    enemyBullets.forEach((eb, ebi) => {
+        eb.y += 7;
+        if (eb.x < player.x + player.w && eb.x + eb.w > player.x && eb.y < player.y + player.h && eb.y + eb.h > player.y) {
+            enemyBullets.splice(ebi, 1); if(!armorActive) player.hp -= 10;
+        }
+    });
     bullets.forEach((b, bi) => {
-        if (b.type === 'homing') { b.y -= 8; let target = enemies[0]; if (target) b.x += (target.x - b.x) * 0.08; } 
-        else b.y -= 14;
-        if (b.y < -50) bullets.splice(bi, 1);
+        b.y -= 12;
         enemies.forEach((e, ei) => {
-            let hit = b.type==='homing'? Math.hypot(b.x-e.x, b.y-e.y)<e.r+10 : (b.x<e.x+e.r && b.x+b.w>e.x-e.r && b.y<e.y+e.r && b.y+b.h>e.y-e.r);
-            if (hit) {
-                e.hp -= (b.type === 'laser' ? 5 : 1);
-                if (b.type !== 'laser') bullets.splice(bi, 1);
-                if (e.hp <= 0) {
-                    enemies.splice(ei, 1); kills++; playSound('exp');
-                    if (Math.random() < 0.2) activeItems.push({ x: e.x, y: e.y, type: Math.random() < 0.3 ? 'life' : 'bomb' });
+            if (b.x < e.x+e.r && b.x+b.w > e.x-e.r && b.y < e.y+e.r && b.y+b.h > e.y-e.r) {
+                e.hp -= 1; bullets.splice(bi, 1);
+                if (e.hp <= 0) { 
+                    enemies.splice(ei, 1); kills++; 
                     if (kills % 25 === 0) { isPaused = true; document.getElementById('upgrade-menu').style.display = 'block'; }
-                    if (kills >= 50) { stage++; kills = 0; }
                 }
             }
         });
     });
-
-    enemyBullets.forEach((eb, ebi) => {
-        eb.y += 6 + stage;
-        if (eb.x < player.x + player.w && eb.x + eb.w > player.x && eb.y < player.y + player.h && eb.y + eb.h > player.y) {
-            enemyBullets.splice(ebi, 1); 
-            if(!armorActive) { 
-                player.hp -= 10; // 총알 피격 시 체력 감소
-                playSound('exp'); 
-            }
-        }
-    });
-
-    activeItems.forEach((item, i) => {
-        item.y += 3;
-        if (Math.hypot(item.x - (player.x+player.w/2), item.y - (player.y+player.h/2)) < 35) {
-            if (item.type === 'bomb') { bombInventory++; armorTimer = 8; armorActive = true; }
-            else if (item.type === 'life') { player.hp = Math.min(player.maxHp, player.hp + 40); }
-            activeItems.splice(i, 1); playSound('item');
-        }
-    });
-
-    // 게임 오버 체크
-    if (player.hp <= 0) {
-        player.hp = 0;
-        gameOver = true;
-    }
-
-    // UI 업데이트
-    const hpFill = document.getElementById('hp-bar-fill');
-    hpFill.style.width = Math.max(0, (player.hp / player.maxHp * 100)) + "%";
-
+    if (player.hp <= 0) gameOver = true;
+    document.getElementById('hp-bar-fill').style.width = player.hp + "%";
     document.getElementById('stage-txt').innerText = stage;
-    document.getElementById('armor-txt').innerText = armorActive ? "ON" : "OFF";
     document.getElementById('bomb-txt-ui').innerText = bombInventory;
     document.getElementById('ammo-txt').innerText = (weaponType === 'Normal') ? '∞' : ammo;
 }
 
 function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, GAME_W, GAME_H);
     ctx.fillStyle = '#fff';
-    stars.forEach(s => { ctx.fillRect(s.x, s.y, s.s, s.s); s.y += s.s * 0.5; if(s.y > canvas.height) s.y = 0; });
-
-    if (armorActive) {
-        ctx.shadowBlur = 15; ctx.shadowColor = '#ffff00';
-        ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(player.x+player.w/2, player.y+player.h/2, 40, 0, Math.PI*2); ctx.stroke();
-        ctx.shadowBlur = 0;
-    }
+    stars.forEach(s => { ctx.fillRect(s.x, s.y, s.s, s.s); s.y += 0.5; if(s.y > GAME_H) s.y = 0; });
     
-    // 기체 색상 변화 (스테이지별)
-    const hue = (180 + (stage * 40)) % 360; 
-    ctx.fillStyle = `hsl(${hue}, 100%, 50%)`; 
-    ctx.beginPath(); ctx.moveTo(player.x + player.w/2, player.y); ctx.lineTo(player.x + player.w, player.y + player.h); ctx.lineTo(player.x, player.y + player.h); ctx.fill();
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
+    // 기체
+    const hue = (180 + (stage * 40)) % 360;
+    ctx.fillStyle = `hsl(${hue}, 100%, 50%)`;
+    ctx.beginPath(); ctx.moveTo(player.x + 17, player.y); ctx.lineTo(player.x + 34, player.y + 40); ctx.lineTo(player.x, player.y + 40); ctx.fill();
 
     enemies.forEach(e => {
         ctx.fillStyle = e.color; ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI*2); ctx.fill();
-        for(let i=0; i<8; i++){
-            let ang = i * Math.PI/4; ctx.moveTo(e.x, e.y); ctx.lineTo(e.x+Math.cos(ang)*(e.r+10), e.y+Math.sin(ang)*(e.r+10));
-            ctx.strokeStyle = e.color; ctx.stroke();
-        }
-        if(e.isBoss) { ctx.fillStyle='red'; ctx.fillRect(e.x-40, e.y-e.r-20, (e.hp/e.maxHp)*80, 6); }
     });
-
-    bullets.forEach(b => {
-        ctx.fillStyle = b.type === 'laser' ? '#0ff' : (b.type==='homing' ? '#ff4500' : '#fff');
-        if(b.type === 'homing') { ctx.beginPath(); ctx.arc(b.x, b.y, 8, 0, Math.PI*2); ctx.fill(); }
-        else ctx.fillRect(b.x, b.y, b.w, b.h);
-    });
-
+    bullets.forEach(b => { ctx.fillStyle = '#0ff'; ctx.fillRect(b.x, b.y, b.w, b.h); });
     enemyBullets.forEach(eb => { ctx.fillStyle = '#f33'; ctx.fillRect(eb.x, eb.y, eb.w, eb.h); });
 
-    activeItems.forEach(item => {
-        ctx.fillStyle = item.type === 'life' ? '#0f0' : '#ff0';
-        ctx.font = 'bold 16px Arial'; ctx.fillText(item.type === 'life' ? '[H]' : '[B]', item.x-10, item.y);
-    });
-
     if (gameOver) {
-        ctx.fillStyle = 'rgba(0,0,0,0.8)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = '#ff0000'; ctx.font = '40px Impact'; ctx.textAlign="center";
-        ctx.fillText('MISSION FAILED', canvas.width/2, canvas.height/2);
-        ctx.fillStyle = '#fff'; ctx.font = '20px Arial';
-        ctx.fillText('Click to Restart', canvas.width/2, canvas.height/2 + 50);
+        ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0,0,GAME_W, GAME_H);
+        ctx.fillStyle = 'red'; ctx.font = '30px Arial'; ctx.textAlign='center';
+        ctx.fillText('GAME OVER', GAME_W/2, GAME_H/2);
     }
 }
 
+// 중요: 터치/마우스 좌표를 캔버스 크기에 맞춰 보정하는 함수
 function handleMove(e) {
-    if (gameOver) return;
     e.preventDefault();
+    initAudio();
     const rect = canvas.getBoundingClientRect();
+    const scaleX = GAME_W / rect.width;
+    const scaleY = GAME_H / rect.height;
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    player.x = (clientX - rect.left) * (canvas.width / rect.width) - player.w / 2;
-    player.y = (clientY - rect.top) * (canvas.height / rect.height) - player.h / 2;
+    
+    player.x = (clientX - rect.left) * scaleX - player.w / 2;
+    player.y = (clientY - rect.top) * scaleY - player.h / 2;
 }
 
-window.addEventListener('keydown', e => { initAudio(); keys[e.code] = true; if(e.code === 'KeyZ') triggerMegaBomb(); });
-window.addEventListener('keyup', e => keys[e.code] = false);
-canvas.addEventListener('mousedown', (e) => { initAudio(); if(gameOver) location.reload(); isShooting = true; handleMove(e); });
+canvas.addEventListener('mousedown', (e) => { if(gameOver) location.reload(); isShooting = true; handleMove(e); });
 window.addEventListener('mousemove', (e) => { if(isShooting) handleMove(e); });
 window.addEventListener('mouseup', () => isShooting = false);
-canvas.addEventListener('touchstart', (e) => { initAudio(); if(gameOver) location.reload(); isShooting = true; handleMove(e); }, {passive: false});
+canvas.addEventListener('touchstart', (e) => { if(gameOver) location.reload(); isShooting = true; handleMove(e); }, {passive: false});
 canvas.addEventListener('touchmove', handleMove, {passive: false});
 canvas.addEventListener('touchend', () => isShooting = false);
 
