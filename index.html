@@ -66,6 +66,13 @@ const GAME_W = 480, GAME_H = 800;
 canvas.width = GAME_W; canvas.height = GAME_H;
 
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+// --- 배경음악 설정 ---
+const bgMusic = new Audio('music.mp3'); 
+bgMusic.loop = true; 
+bgMusic.volume = 0.3; 
+let musicStarted = false;
+
 function playSound(f, t, d, v=0.05) {
     try {
         const o = audioCtx.createOscillator(), g = audioCtx.createGain();
@@ -89,7 +96,13 @@ window.addEventListener('keydown', (e) => {
     if (key === 'h') toggleInfo();
 });
 
-function togglePause() { if(!gameOver) { isPaused = !isPaused; } }
+function togglePause() { 
+    if(!gameOver) { 
+        isPaused = !isPaused; 
+        if (isPaused) bgMusic.pause();
+        else if (musicStarted) bgMusic.play();
+    } 
+}
 function toggleInfo() { if(!gameOver) { isPaused = !isPaused; document.getElementById('info-menu').style.display = isPaused ? 'block' : 'none'; } }
 
 function triggerMegaBomb() {
@@ -99,7 +112,7 @@ function triggerMegaBomb() {
     }
 }
 
-function applyUpgrade(t) { weaponType = t; ammo = 50; isPaused = false; document.getElementById('upgrade-menu').style.display = 'none'; }
+function applyUpgrade(t) { weaponType = t; ammo = 50; isPaused = false; document.getElementById('upgrade-menu').style.display = 'none'; bgMusic.play(); }
 
 function spawnItem(x, y, type) {
     items.push({ x: x, y: y, type: type, r: 15, vy: 2 });
@@ -124,11 +137,18 @@ function update() {
         let delay = (weaponType === 'MachineGun') ? 80 : 300;
         if (now - player.lastShot > delay) {
             bullets.push({ x: player.x + 14, y: player.y, w: 6, h: (weaponType==='Laser'?40:18), type: (weaponType==='Laser'?'laser':'normal') });
+            
+            // --- 공격 효과음 추가 ---
+            if (weaponType === 'Laser') playSound(600, 'sawtooth', 0.1, 0.03);
+            else if (weaponType === 'MachineGun') playSound(400, 'square', 0.05, 0.02);
+            else playSound(300, 'sine', 0.1, 0.04);
+            
             player.lastShot = now;
             if (weaponType !== 'Normal' && weaponType !== 'Homing') ammo--;
         }
         if (weaponType === 'Homing' && now - player.lastHoming > 500) {
             homingMissiles.push({ x: player.x + 17, y: player.y });
+            playSound(150, 'sawtooth', 0.2, 0.05); // 유도 미사일 발사음
             player.lastHoming = now; ammo--;
         }
         if (ammo <= 0) weaponType = 'Normal';
@@ -219,8 +239,12 @@ function update() {
         });
     });
 
-    if (totalKills > 0 && totalKills % 25 === 0) { totalKills++; isPaused = true; document.getElementById('upgrade-menu').style.display = 'block'; }
-    if (player.hp <= 0) gameOver = true;
+    if (totalKills > 0 && totalKills % 25 === 0) { totalKills++; isPaused = true; bgMusic.pause(); document.getElementById('upgrade-menu').style.display = 'block'; }
+    if (player.hp <= 0) {
+        gameOver = true;
+        bgMusic.pause();
+        bgMusic.currentTime = 0;
+    }
     
     document.getElementById('hp-bar-fill').style.width = player.hp + "%";
     document.getElementById('stage-txt').innerText = stage;
@@ -271,6 +295,12 @@ function draw() {
 
 function handleInput(e) {
     if (isPaused || gameOver) return;
+
+    if (!musicStarted) {
+        bgMusic.play().catch(e => console.log("Music play pending user interaction"));
+        musicStarted = true;
+    }
+
     const rect = canvas.getBoundingClientRect();
     const scaleX = GAME_W/rect.width, scaleY = GAME_H/rect.height;
     let cx = e.touches ? e.touches[0].clientX : e.clientX;
