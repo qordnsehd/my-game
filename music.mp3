@@ -1,0 +1,45 @@
+// --- 음악 제어 변수 (기존 변수 선언부 뒤에 추가) ---
+const bgMusic = new Audio('music.mp3'); 
+bgMusic.loop = true; 
+bgMusic.volume = 0.3; 
+let musicStarted = false;
+
+// --- 기존 handleInput 함수 내부에 재생 로직 추가 ---
+function handleInput(e) {
+    if (isPaused || gameOver) return;
+
+    // 첫 클릭 시 배경음악 시작
+    if (!musicStarted) {
+        bgMusic.play().catch(e => console.log("Music play pending user interaction"));
+        musicStarted = true;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = GAME_W/rect.width, scaleY = GAME_H/rect.height;
+    let cx = e.touches ? e.touches[0].clientX : e.clientX;
+    let cy = e.touches ? e.touches[0].clientY : e.clientY;
+    player.x = (cx - rect.left)*scaleX - 17; player.y = (cy - rect.top)*scaleY - 20;
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+// --- 기존 togglePause 함수에 음악 일시정지 로직 추가 ---
+function togglePause() { 
+    if(!gameOver) { 
+        isPaused = !isPaused; 
+        if (isPaused) bgMusic.pause();
+        else if (musicStarted) bgMusic.play();
+    } 
+}
+
+// --- 기존 update 함수 하단 (gameOver 체크 부분) 수정 ---
+function update() {
+    // ... 기존 update 로직 동일 ...
+    
+    if (player.hp <= 0) {
+        gameOver = true;
+        bgMusic.pause(); // 게임 오버 시 음악 정지
+        bgMusic.currentTime = 0; // 음악 위치 초기화
+    }
+    
+    // ... UI 업데이트 로직 동일 ...
+}
