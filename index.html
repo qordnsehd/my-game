@@ -3,33 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Corona Buster Ultimate</title>
+    <title>Virus Shooter - Balanced Edition</title>
     <style>
-        html, body { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; overflow: hidden; font-family: 'Malgun Gothic', sans-serif; }
+        html, body { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; overflow: hidden; font-family: sans-serif; }
         #game-container { position: relative; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }
-        canvas { display: block; max-width: 100%; max-height: 100%; background: radial-gradient(circle, #0a0a20, #000); border: 1px solid #444; touch-action: none; }
+        canvas { display: block; max-width: 100%; max-height: 100%; background: #050510; border: 1px solid #444; touch-action: none; }
         
-        /* UI 스타일 */
         #ui { position: absolute; top: 10px; width: 90%; max-width: 440px; pointer-events: none; background: rgba(0,0,0,0.8); padding: 12px; border-radius: 10px; z-index: 10; border: 1px solid #0ff; color: #fff; }
         .ui-row { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 5px; }
         #hp-bar-container { width: 100%; height: 8px; background: #333; border-radius: 4px; overflow: hidden; }
         #hp-bar-fill { width: 100%; height: 100%; background: linear-gradient(90deg, #f00, #0f0); transition: width 0.2s; }
         
-        /* 오버레이 */
         .overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(10,10,30,0.95); padding: 25px; border: 2px solid #0ff; text-align: center; z-index: 100; border-radius: 15px; color: #fff; width: 280px; }
-        button { background: #1a1a1a; color: #0ff; border: 1px solid #0ff; padding: 12px; cursor: pointer; border-radius: 8px; font-weight: bold; margin: 8px 0; width: 100%; transition: 0.3s; }
-        button:hover { background: #0ff; color: #000; }
-        button:disabled { color: #555; border-color: #333; cursor: not-allowed; background: #000; }
-        
+        button { background: #1a1a1a; color: #0ff; border: 1px solid #0ff; padding: 12px; cursor: pointer; border-radius: 8px; font-weight: bold; margin: 8px 0; width: 100%; }
+        button:disabled { color: #555; border-color: #333; cursor: not-allowed; }
         #combo-ui { position: absolute; right: 20px; top: 100px; color: #ff0; font-size: 24px; font-weight: bold; text-shadow: 0 0 10px #f00; pointer-events: none; }
+        #start-overlay { display: flex; flex-direction: column; }
     </style>
 </head>
 <body>
     <div id="game-container">
         <div id="start-overlay" class="overlay">
-            <h1 style="color:#0ff; margin-bottom:5px;">CORONA BUSTER</h1>
-            <p style="font-size:12px; color:#aaa;">바이러스를 퇴치하고 지구를 구하세요!</p>
-            <button onclick="startGame()">백신 투입 (START)</button>
+            <h1>VIRUS SHOOTER</h1>
+            <p>준비되셨나요?</p>
+            <button onclick="startGame()">START GAME</button>
         </div>
 
         <div id="ui">
@@ -43,11 +40,11 @@
         <div id="combo-ui"></div>
 
         <div id="upgrade-menu" class="overlay" style="display:none;">
-            <h3>백신 강화</h3>
+            <h3>무기 강화</h3>
             <p id="limit-msg" style="font-size:10px; color:#ff0;"></p>
-            <button id="btn-machine" onclick="applyUpgrade('machine')">⚡ 고속 분사기</button>
-            <button id="btn-laser" onclick="applyUpgrade('laser')">🔦 집중 살균 광선</button>
-            <button id="btn-homing" onclick="applyUpgrade('homing')">🎯 추적용 항체</button>
+            <button id="btn-machine" onclick="applyUpgrade('machine')">⚡ 머신건</button>
+            <button id="btn-laser" onclick="applyUpgrade('laser')">🔦 레이저</button>
+            <button id="btn-homing" onclick="applyUpgrade('homing')">🎯 유도 미사일</button>
         </div>
 
         <canvas id="gameCanvas"></canvas>
@@ -59,43 +56,41 @@ const ctx = canvas.getContext('2d');
 const GAME_W = 480, GAME_H = 800;
 canvas.width = GAME_W; canvas.height = GAME_H;
 
-// ===== 오디오 설정 (재확인) =====
+// ===== AUDIO SYSTEM =====
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 const bgMusic = new Audio('music.mp3'); 
 bgMusic.loop = true;
-bgMusic.volume = 0.4;
+bgMusic.volume = 0.3;
 
 function playSound(f, type='sine', dur=0.1, vol=0.05) {
-    try {
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-        o.type = type; o.frequency.setValueAtTime(f, audioCtx.currentTime);
-        g.gain.setValueAtTime(vol, audioCtx.currentTime);
-        g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + dur);
-        o.connect(g); g.connect(audioCtx.destination);
-        o.start(); o.stop(audioCtx.currentTime + dur);
-    } catch(e) {}
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, audioCtx.currentTime);
+    g.gain.setValueAtTime(vol, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + dur);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + dur);
 }
 
-// ===== 게임 상태 =====
+// ===== GAME STATE =====
 let stage = 1, score = 0, kills = 0, totalKills = 0, combo = 0, lastKillTime = 0;
 let isPaused = true, gameOver = false, shooting = false, gameStarted = false;
 let weapon = { machine: 0, laser: 0, homing: 0 };
 let player = { x: 240, y: 700, hp: 100, shield: 0, lastShot: 0 };
 
 let bullets = [], enemies = [], eBullets = [], items = [];
+let stars = Array.from({length: 40}, () => ({x: Math.random()*GAME_W, y: Math.random()*GAME_H, s: Math.random()*2+1}));
 
 function startGame() {
     document.getElementById('start-overlay').style.display = 'none';
     isPaused = false;
     gameStarted = true;
+    // 오디오 컨텍스트 재개 및 음악 재생
     if (audioCtx.state === 'suspended') audioCtx.resume();
-    bgMusic.play().catch(e => {
-        alert("음악 파일을 찾을 수 없습니다. music.mp3가 같은 폴더에 있는지 확인하세요.");
-    });
+    bgMusic.play().catch(e => console.log("Music play failed:", e));
 }
 
-// ===== 입력 처리 =====
+// ===== INPUTS =====
 function handleInput(e) {
     if (!gameStarted || gameOver || isPaused) return;
     const rect = canvas.getBoundingClientRect();
@@ -113,16 +108,21 @@ canvas.addEventListener('touchstart', (e) => { shooting = true; handleInput(e); 
 canvas.addEventListener('touchmove', (e) => { handleInput(e); e.preventDefault(); }, {passive: false});
 canvas.addEventListener('touchend', () => shooting = false);
 
-// ===== 강화 시스템 (스테이지 제한 적용) =====
+// ===== UPGRADE LOGIC =====
 function openUpgradeMenu() {
     isPaused = true;
     const menu = document.getElementById('upgrade-menu');
     menu.style.display = 'block';
+    
+    // 스테이지별 최대 강화 레벨 제한 (밸런스 조절)
+    // 1~4스테이지: 1렙 / 5~9스테이지: 2렙 / 10스테이지 이후: 제한 해제
     const maxLvl = stage < 5 ? 1 : (stage < 10 ? 2 : 5);
     document.getElementById('limit-msg').innerText = `현재 스테이지 최대 강화: LV.${maxLvl}`;
+
     ['machine', 'laser', 'homing'].forEach(type => {
         const btn = document.getElementById('btn-' + type);
         btn.disabled = weapon[type] >= maxLvl;
+        btn.innerText = `${type.toUpperCase()} (현재 LV.${weapon[type]})`;
     });
 }
 
@@ -134,57 +134,42 @@ function applyUpgrade(t) {
 
 function shoot() {
     const now = Date.now();
-    let delay = 350 / (weapon.machine + 1);
+    let delay = 350 / (weapon.machine + 1); // 연사 속도 밸런스 조정
     if (now - player.lastShot < delay) return;
 
     bullets.push({x: player.x, y: player.y, vx: 0, type: 'normal'});
     for(let i=0; i<weapon.machine; i++) {
         bullets.push({x: player.x, y: player.y, vx: (Math.random()-0.5)*5, type: 'normal'});
     }
+
     if(weapon.laser > 0) {
         bullets.push({x: player.x, y: player.y, vx: 0, type: 'laser', pwr: weapon.laser});
         playSound(600, 'sawtooth', 0.1, 0.02);
     } else {
         playSound(450, 'sine', 0.08, 0.03);
     }
+
     if(weapon.homing > 0) {
         for(let i=0; i<weapon.homing; i++) bullets.push({x: player.x, y: player.y, type: 'homing'});
     }
     player.lastShot = now;
 }
 
-// ===== 바이러스 그리기 (코로나 테마) =====
-function drawVirus(ctx, x, y, r, color) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(0, 0, r, 0, Math.PI * 2);
-    ctx.fill();
-    // 돌기 그리기
-    for (let i = 0; i < 8; i++) {
-        ctx.rotate(Math.PI / 4);
-        ctx.fillRect(-2, -r - 5, 4, 8);
-    }
-    ctx.restore();
-}
-
 function update() {
     if (isPaused || gameOver) return;
     if (shooting) shoot();
 
-    // 적 스폰
+    stars.forEach(s => { s.y += 1; if(s.y > GAME_H) s.y = 0; });
+
     if (Math.random() < 0.02 + (stage * 0.006)) {
-        enemies.push({ x: Math.random()*(GAME_W-40)+20, y: -40, r: 18, hp: 2 + Math.floor(stage * 0.8), isBoss: false, lastShoot: 0 });
+        enemies.push({ x: Math.random()*(GAME_W-40)+20, y: -20, r: 20, hp: 2 + Math.floor(stage * 0.8), isBoss: false, lastShoot: 0 });
     }
 
-    // 보스 (바이러스 여왕)
     if (kills > 0 && kills % 50 === 0) {
-        enemies.push({ x: GAME_W/2, y: 100, r: 55, hp: 60 + (stage*30), isBoss: true, lastShoot: 0, vx: 2 + (stage*0.1) });
+        enemies.push({ x: GAME_W/2, y: 100, r: 60, hp: 60 + (stage*25), isBoss: true, lastShoot: 0, vx: 2 + (stage*0.1) });
         kills++; 
     }
 
-    // 충돌 및 이동 로직 (기존 유지)
     bullets.forEach((b, bi) => {
         if (b.type === 'homing') {
             let target = enemies[0];
@@ -199,7 +184,7 @@ function update() {
         if (b.y < -50) bullets.splice(bi, 1);
 
         enemies.forEach((e, ei) => {
-            if (Math.hypot(b.x - e.x, b.y - e.y) < e.r + 5) {
+            if (Math.hypot(b.x - e.x, b.y - e.y) < e.r) {
                 let dmg = b.type === 'laser' ? 1 + (b.pwr * 0.5) : 1;
                 e.hp -= dmg;
                 if (b.type !== 'laser') bullets.splice(bi, 1);
@@ -211,7 +196,7 @@ function update() {
                     score += 100 + (combo * 10);
                     kills++; totalKills++;
                     if (e.isBoss) { stage++; kills = 0; items.push({x: e.x, y: e.y, type: 'hp'}); }
-                    if (totalKills % 25 === 0) items.push({x: e.x, y: e.y, type: 'shield'});
+                    if (totalKills % 20 === 0) items.push({x: e.x, y: e.y, type: 'shield'});
                     enemies.splice(ei, 1);
                 }
             }
@@ -227,6 +212,10 @@ function update() {
             }
         } else {
             e.y += 2.5 + (stage * 0.15);
+            if (Date.now() - e.lastShoot > 2500 && Math.random() < 0.01) {
+                eBullets.push({x: e.x, y: e.y+e.r, vx: 0, vy: 5 + (stage*0.1)});
+                e.lastShoot = Date.now();
+            }
         }
     });
 
@@ -250,7 +239,11 @@ function update() {
         }
     });
 
-    if (totalKills > 0 && totalKills % 25 === 0) { totalKills++; openUpgradeMenu(); }
+    if (totalKills > 0 && totalKills % 25 === 0) {
+        totalKills++;
+        openUpgradeMenu();
+    }
+
     if (player.hp <= 0) { gameOver = true; bgMusic.pause(); }
 
     document.getElementById('hp-bar-fill').style.width = player.hp + "%";
@@ -262,57 +255,55 @@ function update() {
 
 function draw() {
     ctx.clearRect(0, 0, GAME_W, GAME_H);
-    
-    // 플레이어 (주사기/백신 컨셉)
+    ctx.fillStyle = '#fff';
+    stars.forEach(s => ctx.fillRect(s.x, s.y, s.s, s.s));
+
     if (player.shield > 0) {
         ctx.strokeStyle = '#0ff'; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(player.x, player.y, 30, 0, Math.PI*2); ctx.stroke();
     }
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(player.x-5, player.y-20, 10, 40); // 몸체
     ctx.fillStyle = '#0ff';
-    ctx.fillRect(player.x-5, player.y, 10, 20); // 백신 액체
+    ctx.beginPath(); ctx.moveTo(player.x, player.y-15); ctx.lineTo(player.x+15, player.y+15); ctx.lineTo(player.x-15, player.y+15); ctx.fill();
 
-    // 바이러스 적들
     enemies.forEach(e => {
-        drawVirus(ctx, e.x, e.y, e.r, e.isBoss ? '#ff0055' : '#44ff44');
+        ctx.fillStyle = e.isBoss ? '#f00' : '#0f0';
+        ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI*2); ctx.fill();
         if(e.isBoss) {
-            ctx.fillStyle = '#333'; ctx.fillRect(e.x-40, e.y-e.r-20, 80, 5);
-            ctx.fillStyle = '#f00'; ctx.fillRect(e.x-40, e.y-e.r-20, 80*(e.hp/(60+stage*30)), 5);
+            ctx.fillStyle = '#333'; ctx.fillRect(e.x-40, e.y-e.r-15, 80, 5);
+            ctx.fillStyle = '#f00'; ctx.fillRect(e.x-40, e.y-e.r-15, 80*(e.hp/(60+stage*25)), 5);
         }
     });
 
-    // 백신 탄환
     bullets.forEach(b => {
-        ctx.fillStyle = b.type === 'laser' ? '#f0f' : b.type === 'homing' ? '#0f0' : '#0ff';
-        let w = b.type === 'laser' ? 6 + (b.pwr * 2) : 4;
-        ctx.fillRect(b.x - w/2, b.y, w, b.type === 'laser' ? 40 : 15);
+        ctx.fillStyle = b.type === 'laser' ? '#f0f' : b.type === 'homing' ? '#0f0' : '#ff0';
+        let w = b.type === 'laser' ? 4 + (b.pwr * 1.5) : 4;
+        ctx.fillRect(b.x - w/2, b.y, w, b.type === 'laser' ? 30 : 10);
     });
 
-    // 오염 물질 (적 총알)
     eBullets.forEach(eb => {
-        ctx.fillStyle = '#ccff00';
+        ctx.fillStyle = '#ff7700';
         ctx.beginPath(); ctx.arc(eb.x, eb.y, 5, 0, Math.PI*2); ctx.fill();
     });
 
-    // 아이템
     items.forEach(it => {
         ctx.fillStyle = it.type === 'shield' ? '#0af' : '#f06';
-        ctx.beginPath(); ctx.arc(it.x, it.y, 15, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#fff'; ctx.font = 'bold 12px Arial'; ctx.textAlign='center';
-        ctx.fillText(it.type === 'shield' ? '🛡️' : '💊', it.x, it.y+5);
+        ctx.beginPath(); ctx.arc(it.x, it.y, 12, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.font = '10px Arial'; ctx.textAlign='center';
+        ctx.fillText(it.type === 'shield' ? 'S' : 'H', it.x, it.y+4);
     });
 
     if (gameOver) {
         ctx.fillStyle = 'rgba(0,0,0,0.8)'; ctx.fillRect(0,0,GAME_W, GAME_H);
         ctx.fillStyle = '#fff'; ctx.font = '30px Arial'; ctx.textAlign = 'center';
-        ctx.fillText("방역 실패!", GAME_W/2, GAME_H/2);
-        ctx.font = '20px Arial'; ctx.fillText("다시 시도하려면 클릭", GAME_W/2, GAME_H/2 + 50);
+        ctx.fillText("GAME OVER", GAME_W/2, GAME_H/2);
+        ctx.font = '20px Arial'; ctx.fillText("Tap to Restart", GAME_W/2, GAME_H/2 + 50);
     }
 }
 
 function loop() {
-    update(); draw(); requestAnimationFrame(loop);
+    update();
+    draw();
+    requestAnimationFrame(loop);
 }
 
 canvas.addEventListener('click', () => { if(gameOver) location.reload(); });
