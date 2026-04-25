@@ -8,32 +8,26 @@
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; overflow: hidden; font-family: 'Malgun Gothic', sans-serif; }
         #game-container { position: relative; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }
         canvas { display: block; max-width: 100%; max-height: 100%; background: radial-gradient(circle, #0a1020, #000); border: 1px solid #444; touch-action: none; }
-        
         #ui { position: absolute; top: 10px; width: 90%; max-width: 440px; pointer-events: none; background: rgba(0,0,0,0.8); padding: 12px; border-radius: 10px; z-index: 10; border: 1px solid #0ff; color: #fff; }
         .ui-row { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 5px; }
         #hp-bar-container { width: 100%; height: 8px; background: #333; border-radius: 4px; overflow: hidden; }
         #hp-bar-fill { width: 100%; height: 100%; background: linear-gradient(90deg, #f00, #0f0); transition: width 0.2s; }
-        
-        /* 모바일용 우측 버튼 UI */
         #mobile-controls { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 15px; z-index: 20; }
         .ctrl-btn { width: 50px; height: 50px; border-radius: 25px; border: 1px solid rgba(0, 255, 255, 0.5); background: rgba(0, 0, 0, 0.4); color: #0ff; font-weight: bold; font-size: 18px; cursor: pointer; display: flex; justify-content: center; align-items: center; backdrop-filter: blur(2px); }
-        .ctrl-btn:active { background: rgba(0, 255, 255, 0.3); }
-
         .overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(10,10,30,0.95); padding: 25px; border: 2px solid #0ff; text-align: center; z-index: 100; border-radius: 15px; color: #fff; width: 280px; }
         button { background: #1a1a1a; color: #0ff; border: 1px solid #0ff; padding: 12px; cursor: pointer; border-radius: 8px; font-weight: bold; margin: 8px 0; width: 100%; transition: 0.3s; }
-        
-        #upgrade-menu { z-index: 110; }
     </style>
 </head>
 <body>
     <div id="game-container">
         <div id="start-overlay" class="overlay">
             <h1 style="color:#0ff; margin:0 0 10px 0;">CORONA BUSTER</h1>
+            <p style="font-size:12px; color:#0ff;">음악과 효과음이 포함되어 있습니다.</p>
             <button onclick="startGame()">백신 투입 (START)</button>
         </div>
 
         <div id="mobile-controls">
-            <div class="ctrl-btn" onclick="isPaused = !isPaused; if(isPaused) bgMusic.pause(); else bgMusic.play();">P</div>
+            <div class="ctrl-btn" onclick="togglePause()">P</div>
             <div class="ctrl-btn" onclick="useBomb()">Z</div>
             <div class="ctrl-btn" onclick="toggleHelp()">H</div>
         </div>
@@ -41,11 +35,9 @@
         <div id="help-overlay" class="overlay" style="display:none;">
             <h3>조작 안내</h3>
             <div style="font-size: 12px; text-align: left; line-height: 1.6;">
-                • 드래그: 기체 이동<br>
-                • [Z]: 폭탄 (화면 정리)<br>
-                • [P]: 일시정지<br>
-                • [H]: 도움말 창<br>
-                • 적 기체와 충돌 시 대미지를 입습니다!
+                • 드래그: 기체 이동 (자동 발사)<br>
+                • [Z]: 폭탄 (화면 내 모든 적 처치)<br>
+                • [P]: 일시정지 / [H]: 도움말
             </div>
             <button onclick="toggleHelp()">닫기</button>
         </div>
@@ -60,9 +52,9 @@
 
         <div id="upgrade-menu" class="overlay" style="display:none;">
             <h3>백신 강화</h3>
-            <button id="btn-machine" onclick="applyUpgrade('machine')">⚡ 고속 분사기</button>
-            <button id="btn-laser" onclick="applyUpgrade('laser')">🔦 집중 살균 광선</button>
-            <button id="btn-homing" onclick="applyUpgrade('homing')">🎯 추적용 항체</button>
+            <button onclick="applyUpgrade('machine')">⚡ 고속 분사기 (머신건)</button>
+            <button onclick="applyUpgrade('laser')">🔦 집중 살균 광선 (레이저)</button>
+            <button onclick="applyUpgrade('homing')">🎯 추적용 항체 (유도탄)</button>
         </div>
 
         <canvas id="gameCanvas"></canvas>
@@ -74,32 +66,91 @@ const ctx = canvas.getContext('2d');
 const GAME_W = 480, GAME_H = 800;
 canvas.width = GAME_W; canvas.height = GAME_H;
 
+// ===== 오디오 엔진 강화 =====
 const AudioContext = window.AudioContext || window.webkitAudioContext;
 let audioCtx;
-const bgMusic = new Audio('music.mp3'); bgMusic.loop = true; bgMusic.volume = 0.4;
+const bgMusic = new Audio('https://actions.google.com/sounds/v1/science_fiction/techno_ambience.ogg'); // 대체 가능한 외부 주소 예시
+bgMusic.loop = true; bgMusic.volume = 0.3;
 
-function initAudio() { if (!audioCtx) audioCtx = new AudioContext(); if (audioCtx.state === 'suspended') audioCtx.resume(); }
-function playSound(f, type='sine', dur=0.1, vol=0.05) { if (!audioCtx) return; const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.type = type; o.frequency.setValueAtTime(f, audioCtx.currentTime); g.gain.setValueAtTime(vol, audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + dur); o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + dur); }
+function initAudio() { 
+    if (!audioCtx) audioCtx = new AudioContext(); 
+    if (audioCtx.state === 'suspended') audioCtx.resume(); 
+}
 
-let stage = 1, score = 0, kills = 0, totalKills = 0, combo = 0, lastKillTime = 0;
-let isPaused = true, gameOver = false, shooting = false, gameStarted = false, isHelpOpen = false;
+function playWeaponSound(type) {
+    if (!audioCtx) return;
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    
+    const now = audioCtx.currentTime;
+    if (type === 'machine') { // 머신건: 짧고 날카로운 소리
+        o.type = 'square'; o.frequency.setValueAtTime(800, now);
+        g.gain.setValueAtTime(0.03, now); g.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+        o.start(); o.stop(now + 0.05);
+    } else if (type === 'laser') { // 레이저: 묵직하게 긁는 소리
+        o.type = 'sawtooth'; o.frequency.setValueAtTime(200, now);
+        o.frequency.exponentialRampToValueAtTime(50, now + 0.2);
+        g.gain.setValueAtTime(0.05, now); g.gain.linearRampToValueAtTime(0, now + 0.2);
+        o.start(); o.stop(now + 0.2);
+    } else if (type === 'homing') { // 유도탄: 슝 하는 주파수 상승음
+        o.type = 'sine'; o.frequency.setValueAtTime(300, now);
+        o.frequency.exponentialRampToValueAtTime(900, now + 0.15);
+        g.gain.setValueAtTime(0.04, now); g.gain.linearRampToValueAtTime(0, now + 0.15);
+        o.start(); o.stop(now + 0.15);
+    } else if (type === 'bomb') { // 폭탄: 거대한 폭발음
+        o.type = 'sawtooth'; o.frequency.setValueAtTime(100, now);
+        o.frequency.exponentialRampToValueAtTime(10, now + 0.8);
+        g.gain.setValueAtTime(0.2, now); g.gain.linearRampToValueAtTime(0, now + 0.8);
+        o.start(); o.stop(now + 0.8);
+    }
+}
+
+// ===== 게임 변수 =====
+let stage = 1, score = 0, kills = 0, totalKills = 0;
+let isPaused = true, gameOver = false, shooting = false, gameStarted = false;
 let bombCount = 3, flashEffect = 0;
 let weapon = { machine: 0, laser: 0, homing: 0 };
 let player = { x: 240, y: 700, hp: 100, shield: 0, lastShot: 0 };
 let bullets = [], enemies = [], eBullets = [], items = [];
 
-function startGame() { initAudio(); document.getElementById('start-overlay').style.display = 'none'; isPaused = false; gameStarted = true; bgMusic.play().catch(e=>e); }
-function toggleHelp() { isHelpOpen = !isHelpOpen; isPaused = isHelpOpen; document.getElementById('help-overlay').style.display = isHelpOpen ? 'block' : 'none'; }
-function useBomb() { if (bombCount > 0 && !isPaused) { bombCount--; playSound(100, 'sawtooth', 0.5, 0.2); enemies.forEach(e => { if (e.isBoss) e.hp -= 50; else e.hp = 0; }); eBullets = []; flashEffect = 10; document.getElementById('bomb-txt').innerText = bombCount; } }
+function startGame() { 
+    initAudio(); 
+    document.getElementById('start-overlay').style.display = 'none'; 
+    isPaused = false; gameStarted = true; 
+    bgMusic.play().catch(() => console.log("음악 재생을 위해 페이지를 클릭해주세요.")); 
+}
 
-window.addEventListener('keydown', (e) => {
-    if (!gameStarted || gameOver) return;
-    const key = e.key.toLowerCase();
-    if (key === 'p') { isPaused = !isPaused; if(isPaused) bgMusic.pause(); else bgMusic.play(); }
-    if (key === 'z') useBomb();
-    if (key === 'h') toggleHelp();
-});
+function togglePause() { 
+    if(!gameStarted || gameOver) return;
+    isPaused = !isPaused; 
+    if(isPaused) bgMusic.pause(); else bgMusic.play(); 
+}
 
+function toggleHelp() { 
+    const help = document.getElementById('help-overlay');
+    const showing = help.style.display === 'block';
+    help.style.display = showing ? 'none' : 'block';
+    isPaused = !showing;
+}
+
+function useBomb() { 
+    if (bombCount > 0 && !isPaused && !gameOver) { 
+        bombCount--; 
+        playWeaponSound('bomb');
+        flashEffect = 15; 
+        
+        // 화면 내 모든 적 처치 및 점수 반영
+        enemies.forEach(e => {
+            if (e.isBoss) { e.hp -= 100; } 
+            else { score += 100; totalKills++; kills++; }
+        });
+        enemies = enemies.filter(e => e.isBoss && e.hp > 0);
+        eBullets = []; // 적 탄환 모두 제거
+        document.getElementById('bomb-txt').innerText = bombCount;
+    } 
+}
+
+// 입력 처리
 function handleInput(e) {
     if (!gameStarted || gameOver || isPaused) return;
     const rect = canvas.getBoundingClientRect();
@@ -108,7 +159,6 @@ function handleInput(e) {
     player.x = (clientX - rect.left) * (GAME_W / rect.width);
     player.y = (clientY - rect.top) * (GAME_H / rect.height);
 }
-
 canvas.addEventListener('mousedown', (e) => { shooting = true; handleInput(e); });
 window.addEventListener('mousemove', (e) => { if(shooting) handleInput(e); });
 window.addEventListener('mouseup', () => shooting = false);
@@ -120,56 +170,63 @@ function applyUpgrade(t) { weapon[t]++; isPaused = false; bgMusic.play(); docume
 
 function shoot() {
     const now = Date.now();
-    if (now - player.lastShot < 350 / (weapon.machine + 1)) return;
+    if (now - player.lastShot < 300 / (weapon.machine + 1)) return;
+    
+    // 기본 & 머신건
     bullets.push({x: player.x, y: player.y - 30, vx: 0, type: 'normal'});
-    for(let i=0; i<weapon.machine; i++) bullets.push({x: player.x, y: player.y - 30, vx: (Math.random()-0.5)*5, type: 'normal'});
-    if(weapon.laser > 0) bullets.push({x: player.x, y: player.y - 30, vx: 0, type: 'laser', pwr: weapon.laser});
-    if(weapon.homing > 0) for(let i=0; i<weapon.homing; i++) bullets.push({x: player.x, y: player.y - 30, type: 'homing'});
-    player.lastShot = now; playSound(400, 'sine', 0.05, 0.02);
+    for(let i=0; i<weapon.machine; i++) bullets.push({x: player.x, y: player.y - 30, vx: (Math.random()-0.5)*6, type: 'normal'});
+    playWeaponSound('machine');
+
+    // 레이저
+    if(weapon.laser > 0) {
+        bullets.push({x: player.x, y: player.y - 30, vx: 0, type: 'laser', pwr: weapon.laser});
+        playWeaponSound('laser');
+    }
+    // 유도탄
+    if(weapon.homing > 0) {
+        for(let i=0; i<weapon.homing; i++) bullets.push({x: player.x, y: player.y - 30, type: 'homing'});
+        playWeaponSound('homing');
+    }
+    player.lastShot = now;
 }
 
 function update() {
     if (isPaused || gameOver) return;
     if (shooting) shoot();
 
-    // 적 생성 및 공격 패턴
+    // 적 생성
     if (Math.random() < 0.02 + (stage * 0.005)) {
-        enemies.push({ x: Math.random()*(GAME_W-40)+20, y: -40, r: 18, hp: 2 + stage, isBoss: false, lastShoot: 0 });
+        enemies.push({ x: Math.random()*(GAME_W-40)+20, y: -40, r: 18, hp: 2 + stage, isBoss: false });
     }
 
     enemies.forEach((e, ei) => {
         if (e.isBoss) {
             e.x += (e.vx || 2); if(e.x < 60 || e.x > GAME_W-60) e.vx = -(e.vx || 2);
-            if (Date.now() - e.lastShoot > 1000) {
-                for(let i=-2; i<=2; i++) eBullets.push({x: e.x, y: e.y+e.r, vx: i*1.5, vy: 4});
-                e.lastShoot = Date.now();
-            }
+            if (Math.random() < 0.05) eBullets.push({x: e.x, y: e.y+e.r, vx: (Math.random()-0.5)*4, vy: 4});
         } else {
-            e.y += 2.5;
-            // 일반 적기도 가끔 공격
+            e.y += 2.5 + (stage * 0.1);
             if (Math.random() < 0.005) eBullets.push({x: e.x, y: e.y+e.r, vx: 0, vy: 5});
         }
-
-        // 플레이어와 충돌 체크
+        // 기체 충돌
         if (Math.hypot(e.x - player.x, e.y - player.y) < e.r + 20) {
-            if (player.shield > 0) player.shield--; else player.hp -= 0.5; // 지속 충돌 대미지
-            playSound(50, 'sawtooth', 0.1, 0.05);
+            if (player.shield > 0) player.shield--; else player.hp -= 0.5;
         }
     });
 
-    // 탄환 및 대미지 처리 생략(기존 로직 유지)
     bullets.forEach((b, bi) => {
-        if (b.type === 'homing' && enemies[0]) {
-            let dx = enemies[0].x - b.x, dy = enemies[0].y - b.y, d = Math.hypot(dx, dy);
-            b.x += dx/d*8; b.y += dy/d*8;
-        } else { b.y -= 12; b.x += b.vx || 0; }
+        if (b.type === 'homing' && enemies.length > 0) {
+            let target = enemies[0];
+            let dx = target.x - b.x, dy = target.y - b.y, d = Math.hypot(dx, dy);
+            b.x += dx/d*9; b.y += dy/d*9;
+        } else { b.y -= 13; b.x += b.vx || 0; }
+        
         enemies.forEach((e, ei) => {
-            if (Math.hypot(b.x - e.x, b.y - e.y) < e.r + 10) {
+            if (Math.hypot(b.x - e.x, b.y - e.y) < e.r + 15) {
                 e.hp -= (b.type === 'laser' ? 0.5 : 1);
                 if (b.type !== 'laser') bullets.splice(bi, 1);
                 if (e.hp <= 0) {
-                    score += 100; kills++; totalKills++;
-                    if (e.isBoss) { stage++; kills = 0; items.push({x: e.x, y: e.y, type: 'hp'}); }
+                    score += 100; totalKills++; kills++;
+                    if (e.isBoss) { stage++; items.push({x: e.x, y: e.y, type: 'hp'}); }
                     enemies.splice(ei, 1);
                 }
             }
@@ -180,41 +237,42 @@ function update() {
         eb.x += eb.vx; eb.y += eb.vy;
         if (Math.hypot(eb.x - player.x, eb.y - player.y) < 20) {
             if (player.shield > 0) player.shield--; else player.hp -= 10;
-            eBullets.splice(ebi, 1); playSound(100, 'square', 0.2);
+            eBullets.splice(ebi, 1);
         }
     });
 
+    // 아이템 습득
     items.forEach((it, iti) => {
         it.y += 2;
         if (Math.hypot(it.x - player.x, it.y - player.y) < 30) {
-            if (it.type === 'shield') { player.shield = 5; bombCount++; } else player.hp = Math.min(100, player.hp + 30);
+            if (it.type === 'shield') { player.shield = 5; bombCount++; } 
+            else player.hp = Math.min(100, player.hp + 30);
             items.splice(iti, 1);
         }
     });
 
-    if (kills > 0 && kills % 50 === 0) { enemies.push({ x: GAME_W/2, y: 100, r: 50, hp: 50 + stage*20, isBoss: true, lastShoot: 0 }); kills = 0; }
+    if (kills >= 50) { enemies.push({ x: GAME_W/2, y: 100, r: 50, hp: 60 + stage*20, isBoss: true, vx: 2 }); kills = 0; }
     if (totalKills > 0 && totalKills % 25 === 0) { totalKills++; isPaused = true; document.getElementById('upgrade-menu').style.display='block'; }
-    if (player.hp <= 0) gameOver = true;
+    if (player.hp <= 0) { gameOver = true; bgMusic.pause(); }
 
     document.getElementById('hp-bar-fill').style.width = player.hp + "%";
     document.getElementById('stage-txt').innerText = stage;
     document.getElementById('score-txt').innerText = score;
+    document.getElementById('bomb-txt').innerText = bombCount;
 }
 
 function draw() {
     ctx.clearRect(0, 0, GAME_W, GAME_H);
-    if (flashEffect > 0) { ctx.fillStyle = `rgba(255,255,255,${flashEffect/10})`; ctx.fillRect(0,0,GAME_W,GAME_H); flashEffect--; }
+    if (flashEffect > 0) { ctx.fillStyle = `rgba(255,255,255,${flashEffect/15})`; ctx.fillRect(0,0,GAME_W,GAME_H); flashEffect--; }
 
-    // 날개 달린 주사기 기체 그리기
+    // 플레이어 (날개 주사기)
     ctx.save();
     ctx.translate(player.x, player.y);
-    // 날개
-    ctx.fillStyle = '#555';
+    ctx.fillStyle = '#555'; // 날개
     ctx.beginPath(); ctx.moveTo(-10, 0); ctx.lineTo(-35, 15); ctx.lineTo(-10, 20); ctx.fill();
     ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(35, 15); ctx.lineTo(10, 20); ctx.fill();
-    // 주사기 몸통
-    ctx.fillStyle = '#eee'; ctx.fillRect(-7, -20, 14, 40);
-    ctx.fillStyle = '#0cf'; ctx.fillRect(-5, 0, 10, 18); // 약물 부분
+    ctx.fillStyle = '#eee'; ctx.fillRect(-7, -20, 14, 40); // 몸통
+    ctx.fillStyle = '#0cf'; ctx.fillRect(-5, 0, 10, 18); // 약물
     ctx.fillStyle = '#999'; ctx.fillRect(-1, -32, 2, 12); // 바늘
     ctx.restore();
 
@@ -224,18 +282,26 @@ function draw() {
         ctx.save(); ctx.translate(e.x, e.y);
         ctx.fillStyle = e.isBoss ? '#f36' : '#5f5';
         ctx.beginPath(); ctx.arc(0, 0, e.r, 0, Math.PI*2); ctx.fill();
-        for(let i=0; i<8; i++) { ctx.rotate(Math.PI/4); ctx.fillRect(e.r-2, -2, 8, 4); }
         ctx.restore();
     });
 
-    bullets.forEach(b => { ctx.fillStyle = b.type === 'laser' ? '#f0f' : '#0ff'; ctx.fillRect(b.x-2, b.y-10, 4, 20); });
+    bullets.forEach(b => { 
+        ctx.fillStyle = b.type === 'laser' ? '#f0f' : b.type === 'homing' ? '#0f0' : '#0ff'; 
+        ctx.fillRect(b.x-2, b.y-10, 4, 20); 
+    });
     eBullets.forEach(eb => { ctx.fillStyle = '#ff0'; ctx.beginPath(); ctx.arc(eb.x, eb.y, 5, 0, Math.PI*2); ctx.fill(); });
-    items.forEach(it => { ctx.fillStyle = '#f06'; ctx.fillRect(it.x-10, it.y-10, 20, 20); });
+    items.forEach(it => { ctx.fillStyle = it.type === 'hp' ? '#f06' : '#0ff'; ctx.fillRect(it.x-10, it.y-10, 20, 20); });
 
-    if (gameOver) { ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0,0,GAME_W,GAME_H); ctx.fillStyle = '#fff'; ctx.textAlign='center'; ctx.fillText("GAME OVER", GAME_W/2, GAME_H/2); }
+    if (gameOver) {
+        ctx.fillStyle = 'rgba(0,0,0,0.8)'; ctx.fillRect(0,0,GAME_W,GAME_H);
+        ctx.fillStyle = '#fff'; ctx.textAlign='center'; ctx.font = '30px Arial';
+        ctx.fillText("방역 실패!", GAME_W/2, GAME_H/2);
+        ctx.font = '20px Arial'; ctx.fillText("클릭하여 재도전", GAME_W/2, GAME_H/2 + 50);
+    }
 }
 
 function loop() { update(); draw(); requestAnimationFrame(loop); }
+canvas.addEventListener('click', () => { if(gameOver) location.reload(); });
 loop();
 </script>
 </body>
