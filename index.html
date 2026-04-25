@@ -22,39 +22,28 @@
     <div id="game-container">
         <div id="start-overlay" class="overlay">
             <h1 style="color:#0ff; margin:0 0 10px 0;">CORONA BUSTER</h1>
-            <p style="font-size:12px; color:#0ff;">음악과 효과음이 포함되어 있습니다.</p>
             <button onclick="startGame()">백신 투입 (START)</button>
         </div>
 
         <div id="mobile-controls">
             <div class="ctrl-btn" onclick="togglePause()">P</div>
             <div class="ctrl-btn" onclick="useBomb()">Z</div>
-            <div class="ctrl-btn" onclick="toggleHelp()">H</div>
-        </div>
-
-        <div id="help-overlay" class="overlay" style="display:none;">
-            <h3>조작 안내</h3>
-            <div style="font-size: 12px; text-align: left; line-height: 1.6;">
-                • 드래그: 기체 이동 (자동 발사)<br>
-                • [Z]: 폭탄 (화면 내 모든 적 처치)<br>
-                • [P]: 일시정지 / [H]: 도움말
-            </div>
-            <button onclick="toggleHelp()">닫기</button>
         </div>
 
         <div id="ui">
             <div class="ui-row">
                 <div>STAGE: <span id="stage-txt">1</span> | SCORE: <span id="score-txt">0</span></div>
-                <div>BOMB: <span id="bomb-txt">3</span> | <span id="shield-txt">SHIELD OFF</span></div>
+                <div>BOMB: <span id="bomb-txt">3</span></div>
             </div>
             <div id="hp-bar-container"><div id="hp-bar-fill"></div></div>
         </div>
 
         <div id="upgrade-menu" class="overlay" style="display:none;">
-            <h3>백신 강화</h3>
-            <button onclick="applyUpgrade('machine')">⚡ 고속 분사기 (머신건)</button>
-            <button onclick="applyUpgrade('laser')">🔦 집중 살균 광선 (레이저)</button>
-            <button onclick="applyUpgrade('homing')">🎯 추적용 항체 (유도탄)</button>
+            <h3 id="upgrade-title">STAGE CLEAR!</h3>
+            <p>무기를 강화하세요</p>
+            <button onclick="applyUpgrade('machine')">⚡ 고속 분사기</button>
+            <button onclick="applyUpgrade('laser')">🔦 살균 광선</button>
+            <button onclick="applyUpgrade('homing')">🎯 추적 항체</button>
         </div>
 
         <canvas id="gameCanvas"></canvas>
@@ -66,91 +55,72 @@ const ctx = canvas.getContext('2d');
 const GAME_W = 480, GAME_H = 800;
 canvas.width = GAME_W; canvas.height = GAME_H;
 
-// ===== 오디오 엔진 강화 =====
+// ===== 오디오 엔진 (도트 음악 생성기) =====
 const AudioContext = window.AudioContext || window.webkitAudioContext;
 let audioCtx;
-const bgMusic = new Audio('https://actions.google.com/sounds/v1/science_fiction/techno_ambience.ogg'); // 대체 가능한 외부 주소 예시
-bgMusic.loop = true; bgMusic.volume = 0.3;
+let bgmInterval;
 
 function initAudio() { 
     if (!audioCtx) audioCtx = new AudioContext(); 
     if (audioCtx.state === 'suspended') audioCtx.resume(); 
 }
 
+function playBGM() {
+    let notes = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25];
+    let step = 0;
+    bgmInterval = setInterval(() => {
+        if (isPaused || gameOver) return;
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.type = 'square';
+        o.frequency.setValueAtTime(notes[step % notes.length], audioCtx.currentTime);
+        g.gain.setValueAtTime(0.02, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(); o.stop(audioCtx.currentTime + 0.2);
+        step++;
+    }, 250);
+}
+
 function playWeaponSound(type) {
     if (!audioCtx) return;
     const o = audioCtx.createOscillator(), g = audioCtx.createGain();
     o.connect(g); g.connect(audioCtx.destination);
-    
     const now = audioCtx.currentTime;
-    if (type === 'machine') { // 머신건: 짧고 날카로운 소리
-        o.type = 'square'; o.frequency.setValueAtTime(800, now);
-        g.gain.setValueAtTime(0.03, now); g.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
-        o.start(); o.stop(now + 0.05);
-    } else if (type === 'laser') { // 레이저: 묵직하게 긁는 소리
-        o.type = 'sawtooth'; o.frequency.setValueAtTime(200, now);
-        o.frequency.exponentialRampToValueAtTime(50, now + 0.2);
-        g.gain.setValueAtTime(0.05, now); g.gain.linearRampToValueAtTime(0, now + 0.2);
-        o.start(); o.stop(now + 0.2);
-    } else if (type === 'homing') { // 유도탄: 슝 하는 주파수 상승음
-        o.type = 'sine'; o.frequency.setValueAtTime(300, now);
-        o.frequency.exponentialRampToValueAtTime(900, now + 0.15);
-        g.gain.setValueAtTime(0.04, now); g.gain.linearRampToValueAtTime(0, now + 0.15);
-        o.start(); o.stop(now + 0.15);
-    } else if (type === 'bomb') { // 폭탄: 거대한 폭발음
-        o.type = 'sawtooth'; o.frequency.setValueAtTime(100, now);
-        o.frequency.exponentialRampToValueAtTime(10, now + 0.8);
-        g.gain.setValueAtTime(0.2, now); g.gain.linearRampToValueAtTime(0, now + 0.8);
-        o.start(); o.stop(now + 0.8);
-    }
+    if (type === 'machine') { o.type = 'square'; o.frequency.setValueAtTime(800, now); g.gain.setValueAtTime(0.03, now); g.gain.exponentialRampToValueAtTime(0.01, now + 0.05); o.start(); o.stop(now + 0.05); }
+    else if (type === 'laser') { o.type = 'sawtooth'; o.frequency.setValueAtTime(200, now); g.gain.setValueAtTime(0.04, now); g.gain.linearRampToValueAtTime(0, now + 0.1); o.start(); o.stop(now + 0.1); }
+    else if (type === 'homing') { o.type = 'sine'; o.frequency.setValueAtTime(400, now); o.frequency.exponentialRampToValueAtTime(800, now + 0.1); g.gain.setValueAtTime(0.03, now); o.start(); o.stop(now + 0.1); }
+    else if (type === 'bomb') { o.type = 'sawtooth'; o.frequency.setValueAtTime(100, now); o.frequency.exponentialRampToValueAtTime(10, now + 0.8); g.gain.setValueAtTime(0.2, now); o.start(); o.stop(now + 0.8); }
 }
 
 // ===== 게임 변수 =====
-let stage = 1, score = 0, kills = 0, totalKills = 0;
+let stage = 1, score = 0, kills = 0;
 let isPaused = true, gameOver = false, shooting = false, gameStarted = false;
 let bombCount = 3, flashEffect = 0;
 let weapon = { machine: 0, laser: 0, homing: 0 };
-let player = { x: 240, y: 700, hp: 100, shield: 0, lastShot: 0 };
+let player = { x: 240, y: 700, hp: 100, lastShot: 0 };
 let bullets = [], enemies = [], eBullets = [], items = [];
 
 function startGame() { 
     initAudio(); 
     document.getElementById('start-overlay').style.display = 'none'; 
     isPaused = false; gameStarted = true; 
-    bgMusic.play().catch(() => console.log("음악 재생을 위해 페이지를 클릭해주세요.")); 
+    playBGM();
 }
 
-function togglePause() { 
-    if(!gameStarted || gameOver) return;
-    isPaused = !isPaused; 
-    if(isPaused) bgMusic.pause(); else bgMusic.play(); 
-}
-
-function toggleHelp() { 
-    const help = document.getElementById('help-overlay');
-    const showing = help.style.display === 'block';
-    help.style.display = showing ? 'none' : 'block';
-    isPaused = !showing;
-}
+function togglePause() { if(!gameStarted || gameOver) return; isPaused = !isPaused; }
 
 function useBomb() { 
     if (bombCount > 0 && !isPaused && !gameOver) { 
         bombCount--; 
         playWeaponSound('bomb');
         flashEffect = 15; 
-        
-        // 화면 내 모든 적 처치 및 점수 반영
-        enemies.forEach(e => {
-            if (e.isBoss) { e.hp -= 100; } 
-            else { score += 100; totalKills++; kills++; }
-        });
+        enemies.forEach(e => { if (e.isBoss) e.hp -= 100; else { score += 100; } });
         enemies = enemies.filter(e => e.isBoss && e.hp > 0);
-        eBullets = []; // 적 탄환 모두 제거
+        eBullets = [];
         document.getElementById('bomb-txt').innerText = bombCount;
     } 
 }
 
-// 입력 처리
 function handleInput(e) {
     if (!gameStarted || gameOver || isPaused) return;
     const rect = canvas.getBoundingClientRect();
@@ -166,27 +136,20 @@ canvas.addEventListener('touchstart', (e) => { shooting = true; handleInput(e); 
 canvas.addEventListener('touchmove', (e) => { handleInput(e); e.preventDefault(); }, {passive: false});
 canvas.addEventListener('touchend', () => shooting = false);
 
-function applyUpgrade(t) { weapon[t]++; isPaused = false; bgMusic.play(); document.getElementById('upgrade-menu').style.display = 'none'; }
+function applyUpgrade(t) { 
+    weapon[t]++; 
+    isPaused = false; 
+    document.getElementById('upgrade-menu').style.display = 'none'; 
+}
 
 function shoot() {
     const now = Date.now();
     if (now - player.lastShot < 300 / (weapon.machine + 1)) return;
-    
-    // 기본 & 머신건
     bullets.push({x: player.x, y: player.y - 30, vx: 0, type: 'normal'});
     for(let i=0; i<weapon.machine; i++) bullets.push({x: player.x, y: player.y - 30, vx: (Math.random()-0.5)*6, type: 'normal'});
-    playWeaponSound('machine');
-
-    // 레이저
-    if(weapon.laser > 0) {
-        bullets.push({x: player.x, y: player.y - 30, vx: 0, type: 'laser', pwr: weapon.laser});
-        playWeaponSound('laser');
-    }
-    // 유도탄
-    if(weapon.homing > 0) {
-        for(let i=0; i<weapon.homing; i++) bullets.push({x: player.x, y: player.y - 30, type: 'homing'});
-        playWeaponSound('homing');
-    }
+    if(weapon.laser > 0) bullets.push({x: player.x, y: player.y - 30, vx: 0, type: 'laser', pwr: weapon.laser});
+    if(weapon.homing > 0) for(let i=0; i<weapon.homing; i++) bullets.push({x: player.x, y: player.y - 30, type: 'homing'});
+    playWeaponSound(weapon.laser > 0 ? 'laser' : weapon.homing > 0 ? 'homing' : 'machine');
     player.lastShot = now;
 }
 
@@ -194,9 +157,9 @@ function update() {
     if (isPaused || gameOver) return;
     if (shooting) shoot();
 
-    // 적 생성
+    // 적(바이러스) 생성
     if (Math.random() < 0.02 + (stage * 0.005)) {
-        enemies.push({ x: Math.random()*(GAME_W-40)+20, y: -40, r: 18, hp: 2 + stage, isBoss: false });
+        enemies.push({ x: Math.random()*(GAME_W-40)+20, y: -40, r: 18, hp: 2 + stage, isBoss: false, rot: Math.random()*Math.PI*2 });
     }
 
     enemies.forEach((e, ei) => {
@@ -205,12 +168,10 @@ function update() {
             if (Math.random() < 0.05) eBullets.push({x: e.x, y: e.y+e.r, vx: (Math.random()-0.5)*4, vy: 4});
         } else {
             e.y += 2.5 + (stage * 0.1);
+            e.rot += 0.05;
             if (Math.random() < 0.005) eBullets.push({x: e.x, y: e.y+e.r, vx: 0, vy: 5});
         }
-        // 기체 충돌
-        if (Math.hypot(e.x - player.x, e.y - player.y) < e.r + 20) {
-            if (player.shield > 0) player.shield--; else player.hp -= 0.5;
-        }
+        if (Math.hypot(e.x - player.x, e.y - player.y) < e.r + 20) player.hp -= 0.5;
     });
 
     bullets.forEach((b, bi) => {
@@ -225,8 +186,15 @@ function update() {
                 e.hp -= (b.type === 'laser' ? 0.5 : 1);
                 if (b.type !== 'laser') bullets.splice(bi, 1);
                 if (e.hp <= 0) {
-                    score += 100; totalKills++; kills++;
-                    if (e.isBoss) { stage++; items.push({x: e.x, y: e.y, type: 'hp'}); }
+                    score += 100; kills++;
+                    // 랜덤 아이템 드랍 (10% 확률)
+                    if(Math.random() < 0.1) items.push({x: e.x, y: e.y, type: Math.random() > 0.5 ? 'bomb' : 'hp'});
+                    if (e.isBoss) { 
+                        stage++; 
+                        isPaused = true; 
+                        document.getElementById('upgrade-menu').style.display = 'block'; 
+                        document.getElementById('stage-txt').innerText = stage;
+                    }
                     enemies.splice(ei, 1);
                 }
             }
@@ -235,54 +203,60 @@ function update() {
 
     eBullets.forEach((eb, ebi) => {
         eb.x += eb.vx; eb.y += eb.vy;
-        if (Math.hypot(eb.x - player.x, eb.y - player.y) < 20) {
-            if (player.shield > 0) player.shield--; else player.hp -= 10;
-            eBullets.splice(ebi, 1);
-        }
+        if (Math.hypot(eb.x - player.x, eb.y - player.y) < 20) { player.hp -= 10; eBullets.splice(ebi, 1); }
     });
 
-    // 아이템 습득
     items.forEach((it, iti) => {
         it.y += 2;
         if (Math.hypot(it.x - player.x, it.y - player.y) < 30) {
-            if (it.type === 'shield') { player.shield = 5; bombCount++; } 
+            if (it.type === 'bomb') { bombCount++; document.getElementById('bomb-txt').innerText = bombCount; } 
             else player.hp = Math.min(100, player.hp + 30);
             items.splice(iti, 1);
         }
     });
 
-    if (kills >= 50) { enemies.push({ x: GAME_W/2, y: 100, r: 50, hp: 60 + stage*20, isBoss: true, vx: 2 }); kills = 0; }
-    if (totalKills > 0 && totalKills % 25 === 0) { totalKills++; isPaused = true; document.getElementById('upgrade-menu').style.display='block'; }
-    if (player.hp <= 0) { gameOver = true; bgMusic.pause(); }
+    // 보스 출현 조건
+    if (kills >= 30) { 
+        enemies.push({ x: GAME_W/2, y: 100, r: 50, hp: 50 + stage*30, isBoss: true, vx: 2, rot: 0 }); 
+        kills = 0; 
+    }
+    if (player.hp <= 0) gameOver = true;
 
     document.getElementById('hp-bar-fill').style.width = player.hp + "%";
-    document.getElementById('stage-txt').innerText = stage;
     document.getElementById('score-txt').innerText = score;
-    document.getElementById('bomb-txt').innerText = bombCount;
+}
+
+function drawVirus(x, y, r, color, rot) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rot);
+    ctx.fillStyle = color;
+    // 몸체
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.fill();
+    // 돌기
+    for(let i=0; i<8; i++) {
+        ctx.rotate(Math.PI/4);
+        ctx.fillRect(r - 2, -3, 8, 6);
+        ctx.beginPath(); ctx.arc(r + 6, 0, 4, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
 }
 
 function draw() {
     ctx.clearRect(0, 0, GAME_W, GAME_H);
     if (flashEffect > 0) { ctx.fillStyle = `rgba(255,255,255,${flashEffect/15})`; ctx.fillRect(0,0,GAME_W,GAME_H); flashEffect--; }
 
-    // 플레이어 (날개 주사기)
+    // 플레이어
     ctx.save();
     ctx.translate(player.x, player.y);
-    ctx.fillStyle = '#555'; // 날개
-    ctx.beginPath(); ctx.moveTo(-10, 0); ctx.lineTo(-35, 15); ctx.lineTo(-10, 20); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(35, 15); ctx.lineTo(10, 20); ctx.fill();
-    ctx.fillStyle = '#eee'; ctx.fillRect(-7, -20, 14, 40); // 몸통
-    ctx.fillStyle = '#0cf'; ctx.fillRect(-5, 0, 10, 18); // 약물
-    ctx.fillStyle = '#999'; ctx.fillRect(-1, -32, 2, 12); // 바늘
+    ctx.fillStyle = '#eee'; ctx.fillRect(-7, -20, 14, 40);
+    ctx.fillStyle = '#0cf'; ctx.fillRect(-5, 0, 10, 18);
+    ctx.fillStyle = '#999'; ctx.fillRect(-1, -32, 2, 12);
     ctx.restore();
 
-    if (player.shield > 0) { ctx.strokeStyle = '#0ff'; ctx.beginPath(); ctx.arc(player.x, player.y, 40, 0, Math.PI*2); ctx.stroke(); }
-
+    // 적 바이러스 디자인 적용
     enemies.forEach(e => {
-        ctx.save(); ctx.translate(e.x, e.y);
-        ctx.fillStyle = e.isBoss ? '#f36' : '#5f5';
-        ctx.beginPath(); ctx.arc(0, 0, e.r, 0, Math.PI*2); ctx.fill();
-        ctx.restore();
+        drawVirus(e.x, e.y, e.r, e.isBoss ? '#f36' : '#5f5', e.rot);
     });
 
     bullets.forEach(b => { 
@@ -290,7 +264,13 @@ function draw() {
         ctx.fillRect(b.x-2, b.y-10, 4, 20); 
     });
     eBullets.forEach(eb => { ctx.fillStyle = '#ff0'; ctx.beginPath(); ctx.arc(eb.x, eb.y, 5, 0, Math.PI*2); ctx.fill(); });
-    items.forEach(it => { ctx.fillStyle = it.type === 'hp' ? '#f06' : '#0ff'; ctx.fillRect(it.x-10, it.y-10, 20, 20); });
+    
+    // 아이템 디자인
+    items.forEach(it => { 
+        ctx.fillStyle = it.type === 'hp' ? '#f06' : '#ff0'; 
+        ctx.font = "bold 16px Arial"; ctx.textAlign="center";
+        ctx.fillText(it.type === 'hp' ? "H" : "B", it.x, it.y);
+    });
 
     if (gameOver) {
         ctx.fillStyle = 'rgba(0,0,0,0.8)'; ctx.fillRect(0,0,GAME_W,GAME_H);
