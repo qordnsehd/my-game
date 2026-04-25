@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Virus Shooter - Cody Pro</title>
+    <title>Virus Shooter - Cody Hybrid</title>
     <style>
-        /* 블로그 배경색 강제 고정 */
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000 !important; overflow: hidden; }
         
         #game-container {
@@ -24,28 +23,36 @@
             max-height: 100%;
             object-fit: contain;
             background: linear-gradient(to bottom, #050505, #110022);
-            border: 2px solid #444;
+            border: 1px solid #444;
             touch-action: none;
         }
         
         /* UI 레이아웃 */
-        #ui { position: absolute; top: 10px; width: 85%; max-width: 400px; pointer-events: none; background: rgba(0,0,0,0.85); padding: 12px; border-radius: 10px; z-index: 10; border: 1px solid #8a2be2; color: #fff; font-family: sans-serif; }
+        #ui { position: absolute; top: 10px; width: 90%; max-width: 440px; pointer-events: none; background: rgba(0,0,0,0.85); padding: 10px; border-radius: 10px; z-index: 10; border: 1px solid #8a2be2; color: #fff; font-family: sans-serif; }
         .ui-top { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 5px; }
         #hp-bar-container { width: 100%; height: 8px; background: #333; border-radius: 4px; overflow: hidden; }
         #hp-bar-fill { width: 100%; height: 100%; background: linear-gradient(90deg, #ff0000, #00ff00); transition: width 0.2s; }
         
-        /* 제어 버튼들 */
-        .ctrl-btn { position: absolute; width: 55px; height: 55px; border-radius: 50%; color: white; font-weight: bold; font-size: 11px; cursor: pointer; z-index: 20; display: flex; justify-content: center; align-items: center; border: 2px solid #fff; pointer-events: auto; }
+        /* [중요] 모바일에서만 보이는 버튼 스타일 */
+        .mobile-btn { 
+            position: absolute; width: 60px; height: 60px; border-radius: 50%; color: white; 
+            font-weight: bold; font-size: 11px; cursor: pointer; z-index: 20; 
+            display: none; /* 기본적으로 숨김 */
+            justify-content: center; align-items: center; border: 2px solid #fff; pointer-events: auto; 
+        }
+
+        /* 스마트폰/태블릿(화면 너비 1024px 이하)에서만 버튼 표시 */
+        @media screen and (max-width: 1024px) {
+            .mobile-btn { display: flex; }
+        }
+
         #bomb-btn { bottom: 20px; right: 20px; background: rgba(255, 0, 0, 0.6); border-color: #ff0000; }
         #pause-btn { bottom: 20px; left: 20px; background: rgba(0, 255, 0, 0.4); border-color: #00ff00; }
         #info-btn { top: 120px; right: 20px; width: 40px; height: 40px; background: rgba(255, 255, 255, 0.2); border-color: #fff; }
 
-        /* 팝업 공통 스타일 */
+        /* 팝업 스타일 */
         .overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(10,0,20,0.95); padding: 20px; border: 2px solid #00ffff; display: none; text-align: center; z-index: 100; border-radius: 15px; width: 80%; max-width: 320px; color: #fff; }
-        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
-        .close-btn { margin-top: 15px; background: #333; color: #fff; border: 1px solid #fff; padding: 8px; border-radius: 5px; cursor: pointer; }
-        
-        button { background: #1a1a1a; color: #00ffff; border: 1px solid #00ffff; padding: 10px; cursor: pointer; border-radius: 8px; font-weight: bold; }
+        .close-btn { margin-top: 15px; background: #333; color: #fff; border: 1px solid #fff; padding: 8px; border-radius: 5px; cursor: pointer; font-size: 14px; }
         h3 { color: #00ffff; margin-top: 0; }
         .desc-text { font-size: 13px; text-align: left; line-height: 1.6; }
     </style>
@@ -60,35 +67,33 @@
             <div id="hp-bar-container"><div id="hp-bar-fill"></div></div>
         </div>
         
-        <div id="pause-btn" class="ctrl-btn" onclick="togglePause()">PAUSE</div>
-        <div id="bomb-btn" class="ctrl-btn" onclick="triggerMegaBomb()">BOMB</div>
-        <div id="info-btn" class="ctrl-btn" onclick="toggleInfo()">?</div>
+        <div id="pause-btn" class="mobile-btn" onclick="togglePause()">PAUSE</div>
+        <div id="bomb-btn" class="mobile-btn" onclick="triggerMegaBomb()">BOMB</div>
+        <div id="info-btn" class="mobile-btn" onclick="toggleInfo()">?</div>
 
         <div id="pause-menu" class="overlay">
             <h3>PAUSED</h3>
-            <p>잠시 쉬어가는 중...</p>
-            <button onclick="togglePause()" style="width:100%">CONTINUE</button>
+            <p>PC: 'P'를 눌러 재개하세요</p>
+            <button onclick="togglePause()" style="width:100%; padding:10px; background:#00ff00; color:#000; font-weight:bold; border:none; border-radius:5px;">CONTINUE</button>
         </div>
 
         <div id="info-menu" class="overlay">
             <h3>GAME INFO</h3>
             <div class="desc-text">
-                • <b>이동:</b> 마우스 클릭/터치 드래그<br>
-                • <b>폭탄:</b> 우측 하단 버튼 (화면 전체 타격)<br>
-                • <b>일시정지:</b> 좌측 하단 버튼<br>
-                • <b>업그레이드:</b> 25킬마다 무기 선택<br>
-                • <b>아이템:</b> 적 처치 시 확률적으로 등장<br>
-                &nbsp;&nbsp;[H] 체력 회복 / [B] 폭탄+보호막
+                <b>[PC 조작법]</b><br>
+                • 일시정지: <b>P</b> / 도움말: <b>H</b> / 폭탄: <b>Z</b><br>
+                • 이동: 마우스 드래그<br><br>
+                <b>[모바일 조작법]</b><br>
+                • 화면 하단 버튼 이용
             </div>
             <div class="close-btn" onclick="toggleInfo()">닫기</div>
         </div>
 
         <div id="upgrade-menu" class="overlay">
-            <h3>SYSTEM UPGRADE</h3>
-            <div class="btn-grid">
-                <button onclick="applyUpgrade('MachineGun')">⚡ 머신건</button>
-                <button onclick="applyUpgrade('Laser')">🔦 레이저</button>
-                <button onclick="applyUpgrade('Homing')" style="grid-column: 1 / -1;">🎯 유도 미사일</button>
+            <h3>UPGRADE</h3>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;">
+                <button onclick="applyUpgrade('MachineGun')" style="padding:10px; background:#1a1a1a; color:#0ff; border:1px solid #0ff;">⚡ 머신건</button>
+                <button onclick="applyUpgrade('Laser')" style="padding:10px; background:#1a1a1a; color:#0ff; border:1px solid #0ff;">🔦 레이저</button>
             </div>
         </div>
 
@@ -101,43 +106,29 @@ const ctx = canvas.getContext('2d');
 const GAME_W = 480, GAME_H = 800;
 canvas.width = GAME_W; canvas.height = GAME_H;
 
-let stage = 1, kills = 0, bombInventory = 3;
-let weaponType = 'Normal', ammo = 0, isPaused = false, gameOver = false, isShooting = false;
+let stage = 1, kills = 0, bombInventory = 3, isPaused = false, gameOver = false, isShooting = false;
+let weaponType = 'Normal', ammo = 0;
 let stars = Array.from({length: 30}, () => ({x: Math.random()*GAME_W, y: Math.random()*GAME_H, s: Math.random()*2+1}));
-let player = { x: 225, y: 700, w: 34, h: 40, hp: 100, maxHp: 100, lastShot: 0 };
+let player = { x: 225, y: 700, w: 34, h: 40, hp: 100 };
 let bullets = [], enemies = [];
 
-// 일시정지 토글
+// 키보드 이벤트 추가
+window.addEventListener('keydown', (e) => {
+    const key = e.key.toLowerCase();
+    if (key === 'p') togglePause();
+    if (key === 'h') toggleInfo();
+    if (key === 'z') triggerMegaBomb();
+});
+
 function togglePause() {
     if (gameOver) return;
     isPaused = !isPaused;
     document.getElementById('pause-menu').style.display = isPaused ? 'block' : 'none';
 }
 
-// 정보창 토글
 function toggleInfo() {
     isPaused = !isPaused;
     document.getElementById('info-menu').style.display = document.getElementById('info-menu').style.display === 'block' ? 'none' : 'block';
-}
-
-function spawnEnemy() {
-    if (enemies.length < 5 + stage) {
-        enemies.push({
-            x: 30 + Math.random() * (GAME_W - 60), y: -50,
-            r: 25, hp: 1 + Math.floor(stage/3), speedY: 2 + (stage * 0.1),
-            color: `hsl(${180 + Math.random() * 60}, 80%, 50%)`
-        });
-    }
-}
-
-function shoot() {
-    const now = Date.now();
-    let delay = weaponType === 'MachineGun' ? 80 : 300;
-    if (now - player.lastShot > delay) {
-        bullets.push({ x: player.x + player.w/2 - 3, y: player.y, w: 6, h: 18 });
-        player.lastShot = now;
-        if(weaponType !== 'Normal') { ammo--; if(ammo<=0) weaponType='Normal'; }
-    }
 }
 
 function triggerMegaBomb() {
@@ -151,9 +142,19 @@ function applyUpgrade(type) { weaponType = type; ammo = 60; isPaused = false; do
 
 function update() {
     if (isPaused || gameOver) return;
-    if (isShooting) shoot();
-    if (Math.random() < 0.02) spawnEnemy();
+    if (isShooting) {
+        const now = Date.now();
+        if (now - (player.lastShot || 0) > (weaponType === 'MachineGun' ? 80 : 300)) {
+            bullets.push({ x: player.x + 14, y: player.y, w: 6, h: 18 });
+            player.lastShot = now;
+            if(weaponType !== 'Normal') { ammo--; if(ammo<=0) weaponType='Normal'; }
+        }
+    }
     
+    if (Math.random() < 0.02) {
+        enemies.push({ x: 30 + Math.random() * (GAME_W-60), y: -50, r: 25, hp: 1, speedY: 2 });
+    }
+
     enemies.forEach((e, ei) => {
         e.y += e.speedY;
         if (e.y > GAME_H) enemies.splice(ei, 1);
@@ -177,7 +178,6 @@ function update() {
     if (player.hp <= 0) { player.hp = 0; gameOver = true; }
     
     document.getElementById('hp-bar-fill').style.width = player.hp + "%";
-    document.getElementById('stage-txt').innerText = stage;
     document.getElementById('ammo-txt').innerText = weaponType === 'Normal' ? '∞' : ammo;
 }
 
@@ -185,18 +185,14 @@ function draw() {
     ctx.clearRect(0, 0, GAME_W, GAME_H);
     ctx.fillStyle = '#fff';
     stars.forEach(s => { ctx.fillRect(s.x, s.y, s.s, s.s); s.y += 0.5; if(s.y > GAME_H) s.y = 0; });
-    
-    const hue = (180 + (stage * 40)) % 360;
-    ctx.fillStyle = `hsl(${hue}, 100%, 50%)`;
+    ctx.fillStyle = '#0ff';
     ctx.beginPath(); ctx.moveTo(player.x + 17, player.y); ctx.lineTo(player.x + 34, player.y + 40); ctx.lineTo(player.x, player.y + 40); ctx.fill();
-
-    enemies.forEach(e => { ctx.fillStyle = e.color; ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI*2); ctx.fill(); });
+    enemies.forEach(e => { ctx.fillStyle = '#f0f'; ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI*2); ctx.fill(); });
     bullets.forEach(b => { ctx.fillStyle = '#ff0'; ctx.fillRect(b.x, b.y, b.w, b.h); });
-
     if (gameOver) {
         ctx.fillStyle = 'rgba(0,0,0,0.8)'; ctx.fillRect(0,0,GAME_W, GAME_H);
         ctx.fillStyle = 'red'; ctx.font = 'bold 30px Arial'; ctx.textAlign='center';
-        ctx.fillText('MISSION FAILED', GAME_W/2, GAME_H/2);
+        ctx.fillText('GAME OVER', GAME_W/2, GAME_H/2);
     }
 }
 
