@@ -3,74 +3,97 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ultimate Virus Shooter</title>
+<title>Virus Shooter Ultimate</title>
 <style>
-body { margin:0; background:#000; overflow:hidden; }
-canvas { display:block; margin:auto; background:#050510; }
-#ui { position:absolute; top:10px; left:10px; color:#fff; font-size:14px; }
-.overlay {
- position:absolute; top:50%; left:50%;
- transform:translate(-50%,-50%);
- background:#111; padding:20px;
- border:2px solid #0ff; color:#fff;
- display:none;
+html,body{margin:0;padding:0;background:#000;overflow:hidden;}
+canvas{display:block;margin:auto;background:linear-gradient(#050505,#110022);}
+#ui{
+ position:absolute;top:10px;left:50%;
+ transform:translateX(-50%);
+ color:#fff;font-size:12px;
+ background:rgba(0,0,0,0.7);
+ padding:8px;border-radius:10px;
 }
-button { margin:5px; padding:8px; }
 </style>
 </head>
 <body>
 
 <div id="ui">
-HP: <span id="hp"></span> |
-SCORE: <span id="score"></span> |
-COIN: <span id="coin"></span> |
-CRIT: <span id="crit"></span>
+STAGE: <span id="stage-txt">1</span> |
+SCORE: <span id="score-txt">0</span> |
+COMBO: <span id="combo-txt">0</span>
+<br>
+HP: <span id="hp-txt">100</span>
 </div>
 
-<div id="shop" class="overlay">
-<h3>SHOP</h3>
-<button onclick="buy('damage')">공격력 +1 (10코인)</button>
-<button onclick="buy('crit')">크리티컬 +5% (15코인)</button>
-<button onclick="closeShop()">닫기</button>
-</div>
-
-<canvas id="game"></canvas>
+<canvas id="gameCanvas"></canvas>
 
 <script>
-const canvas = document.getElementById('game');
+const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 canvas.width = 480;
 canvas.height = 800;
 
-// ===== 플레이어 =====
-let player = {
- x:240, y:700, hp:100,
- damage:1,
- crit:0.1
-};
+// ===== 음악 (버그 수정 완료) =====
+const bgMusic = new Audio('music.mp3');
+bgMusic.loop = true;
+bgMusic.volume = 0.3;
+let musicStarted = false;
 
-// ===== 상태 =====
-let bullets=[], enemies=[], particles=[];
-let score=0, coins=0;
-let lastShot=0;
-
-// ===== 파티클 =====
-function spawnParticles(x,y,color,count=10){
- for(let i=0;i<count;i++){
-  particles.push({
-   x,y,
-   vx:(Math.random()-0.5)*4,
-   vy:(Math.random()-0.5)*4,
-   life:30,
-   color
-  });
+function startMusic(){
+ if(!musicStarted){
+  bgMusic.play().catch(()=>{});
+  musicStarted = true;
  }
 }
 
-// ===== 총알 =====
+// ===== 사운드 =====
+const audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+function playSound(f,t,d,v=0.05){
+ try{
+  const o=audioCtx.createOscillator();
+  const g=audioCtx.createGain();
+  o.type=t;
+  o.frequency.value=f;
+  g.gain.value=v;
+  g.gain.exponentialRampToValueAtTime(0.01,audioCtx.currentTime+d);
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start(); o.stop(audioCtx.currentTime+d);
+ }catch(e){}
+}
+
+// ===== 상태 =====
+let player={x:240,y:700,hp:100};
+let bullets=[], enemies=[], eBullets=[];
+let stage=1, kills=0;
+let score=0, combo=0, lastKillTime=0;
+let critChance=0.15;
+let isShooting=false, gameOver=false;
+
+// ===== 입력 =====
+canvas.addEventListener('mousedown',e=>{
+ startMusic();
+ if(gameOver) location.reload();
+ isShooting=true;
+ movePlayer(e);
+});
+window.addEventListener('mousemove',e=>{
+ if(isShooting) movePlayer(e);
+});
+window.addEventListener('mouseup',()=>isShooting=false);
+
+function movePlayer(e){
+ const rect=canvas.getBoundingClientRect();
+ player.x=(e.clientX-rect.left);
+ player.y=(e.clientY-rect.top);
+}
+
+// ===== 총 =====
+let lastShot=0;
 function shoot(){
- if(Date.now()-lastShot<200)return;
+ if(Date.now()-lastShot<200) return;
  bullets.push({x:player.x,y:player.y});
+ playSound(400,'square',0.05);
  lastShot=Date.now();
 }
 
@@ -79,8 +102,9 @@ function spawnEnemy(){
  enemies.push({
   x:Math.random()*440+20,
   y:-20,
-  hp:3,
-  type:'normal'
+  r:20,
+  hp:2+stage*0.2,
+  lastShoot:0
  });
 }
 
@@ -88,96 +112,144 @@ function spawnEnemy(){
 function spawnBoss(){
  enemies.push({
   x:240,y:100,
-  hp:100,
-  type:'boss',
+  r:50,
+  hp:80+stage*20,
+  isBoss:true,
   phase:1,
-  t:0
+  lastShoot:0
  });
-}
-
-// ===== 충돌 =====
-function hitEnemy(e, dmg){
- let isCrit = Math.random() < player.crit;
- let finalDmg = isCrit ? dmg*2 : dmg;
-
- e.hp -= finalDmg;
-
- if(isCrit){
-  spawnParticles(e.x,e.y,'yellow',20);
- }
-
- if(e.hp<=0){
-  score+=100;
-  coins+=5;
-  spawnParticles(e.x,e.y,'red',25);
-  enemies.splice(enemies.indexOf(e),1);
- }
-}
-
-// ===== 상점 =====
-function buy(type){
- if(type==='damage' && coins>=10){
-  coins-=10;
-  player.damage++;
- }
- if(type==='crit' && coins>=15){
-  coins-=15;
-  player.crit+=0.05;
- }
-}
-
-// ===== 보스 AI =====
-function bossAI(b){
- b.t++;
-
- // 페이즈 변경
- if(b.hp<70) b.phase=2;
- if(b.hp<30) b.phase=3;
-
- if(b.phase===1){
-  b.x += Math.sin(b.t/20)*2;
- }
- else if(b.phase===2){
-  b.x += Math.sin(b.t/10)*4;
- }
- else if(b.phase===3){
-  b.x += Math.sin(b.t/5)*6;
- }
 }
 
 // ===== 업데이트 =====
 function update(){
+ if(gameOver) return;
+
+ if(isShooting) shoot();
+
+ // 적 생성
  if(Math.random()<0.02) spawnEnemy();
 
+ // 보스 등장
+ if(kills>0 && kills%50===0 && !enemies.some(e=>e.isBoss)){
+  spawnBoss();
+ }
+
+ // 총알 이동
  bullets.forEach((b,bi)=>{
   b.y-=10;
 
-  enemies.forEach(e=>{
-   if(Math.hypot(b.x-e.x,b.y-e.y)<20){
-    hitEnemy(e, player.damage);
+  enemies.forEach((e,ei)=>{
+   if(Math.hypot(b.x-e.x,b.y-e.y)<e.r){
+
+    // 🔥 크리티컬
+    let isCrit = Math.random()<critChance;
+    let dmg = isCrit?2:1;
+
+    e.hp-=dmg;
+
+    if(isCrit) playSound(900,'square',0.1);
+
     bullets.splice(bi,1);
+
+    if(e.hp<=0){
+
+     // 🔥 콤보
+     let now=Date.now();
+     if(now-lastKillTime<1500) combo++;
+     else combo=1;
+     lastKillTime=now;
+
+     // 점수
+     score += (e.isBoss?2000:100) + combo*10;
+
+     kills++;
+     enemies.splice(ei,1);
+     playSound(150,'square',0.1);
+    }
    }
   });
  });
 
- enemies.forEach(e=>{
-  if(e.type==='boss') bossAI(e);
-  else e.y+=2;
+ // 적 이동 & 공격
+ enemies.forEach((e,ei)=>{
+
+  if(e.isBoss){
+
+   // 🔥 보스 AI
+   if(e.hp<60) e.phase=2;
+   if(e.hp<30) e.phase=3;
+
+   if(e.phase===1){
+    e.x += Math.sin(Date.now()/300)*2;
+   }
+   else if(e.phase===2){
+    if(Date.now()-e.lastShoot>800){
+     for(let i=-2;i<=2;i++){
+      eBullets.push({x:e.x,y:e.y,vx:i*1.5,vy:4});
+     }
+     e.lastShoot=Date.now();
+    }
+   }
+   else{
+    e.x += Math.sin(Date.now()/100)*5;
+    if(Date.now()-e.lastShoot>400){
+     eBullets.push({
+      x:e.x,
+      y:e.y,
+      vx:(Math.random()-0.5)*4,
+      vy:6
+     });
+     e.lastShoot=Date.now();
+    }
+   }
+
+  }else{
+   e.y+=2;
+
+   // 🔥 공격 강화
+   if(Date.now()-e.lastShoot>1200){
+    eBullets.push({
+     x:e.x,
+     y:e.y,
+     vx:(Math.random()-0.5)*2,
+     vy:5
+    });
+    e.lastShoot=Date.now();
+   }
+  }
+
+  if(e.y>800) enemies.splice(ei,1);
  });
 
- // 파티클
- particles.forEach((p,pi)=>{
-  p.x+=p.vx;
-  p.y+=p.vy;
-  p.life--;
-  if(p.life<=0) particles.splice(pi,1);
+ // 적 탄환
+ eBullets.forEach((b,bi)=>{
+  b.x+=b.vx;
+  b.y+=b.vy;
+
+  if(b.y>800) eBullets.splice(bi,1);
+
+  if(
+   b.x>player.x-10 &&
+   b.x<player.x+10 &&
+   b.y>player.y-10 &&
+   b.y<player.y+10
+  ){
+   player.hp-=5;
+   eBullets.splice(bi,1);
+   playSound(100,'sine',0.1);
+  }
  });
+
+ if(player.hp<=0){
+  gameOver=true;
+  bgMusic.pause();
+ }
 
  // UI
- document.getElementById('hp').innerText=player.hp;
- document.getElementById('score').innerText=score;
- document.getElementById('coin').innerText=coins;
- document.getElementById('crit').innerText=Math.floor(player.crit*100)+'%';
+ document.getElementById('stage-txt').innerText=stage;
+ document.getElementById('score-txt').innerText=score;
+ document.getElementById('combo-txt').innerText=combo;
+ document.getElementById('hp-txt').innerText=player.hp;
 }
 
 // ===== 그리기 =====
@@ -186,7 +258,11 @@ function draw(){
 
  // 플레이어
  ctx.fillStyle='cyan';
- ctx.fillRect(player.x-10,player.y-10,20,20);
+ ctx.beginPath();
+ ctx.moveTo(player.x,player.y-10);
+ ctx.lineTo(player.x+10,player.y+10);
+ ctx.lineTo(player.x-10,player.y+10);
+ ctx.fill();
 
  // 총알
  ctx.fillStyle='yellow';
@@ -196,32 +272,27 @@ function draw(){
 
  // 적
  enemies.forEach(e=>{
-  ctx.fillStyle=e.type==='boss'?'red':'green';
+  ctx.fillStyle=e.isBoss?'red':'green';
   ctx.beginPath();
-  ctx.arc(e.x,e.y,15,0,Math.PI*2);
+  ctx.arc(e.x,e.y,e.r,0,Math.PI*2);
   ctx.fill();
  });
 
- // 파티클
- particles.forEach(p=>{
-  ctx.fillStyle=p.color;
-  ctx.fillRect(p.x,p.y,3,3);
+ // 적탄
+ ctx.fillStyle='orange';
+ eBullets.forEach(b=>{
+  ctx.beginPath();
+  ctx.arc(b.x,b.y,4,0,Math.PI*2);
+  ctx.fill();
  });
-}
 
-// ===== 입력 =====
-canvas.addEventListener('mousemove',e=>{
- player.x = e.offsetX;
- player.y = e.offsetY;
- shoot();
-});
-
-canvas.addEventListener('click',()=>{
- document.getElementById('shop').style.display='block';
-});
-
-function closeShop(){
- document.getElementById('shop').style.display='none';
+ // 게임오버
+ if(gameOver){
+  ctx.fillStyle='white';
+  ctx.font='30px Arial';
+  ctx.textAlign='center';
+  ctx.fillText('GAME OVER',240,400);
+ }
 }
 
 // ===== 루프 =====
@@ -231,9 +302,6 @@ function loop(){
  requestAnimationFrame(loop);
 }
 loop();
-
-// ===== 보스 등장 =====
-setTimeout(spawnBoss,10000);
 
 </script>
 </body>
