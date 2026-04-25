@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Virus Shooter - Balanced Edition</title>
+    <title>Corona Buster Ultimate</title>
     <style>
-        html, body { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; overflow: hidden; font-family: sans-serif; }
+        html, body { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; overflow: hidden; font-family: 'Malgun Gothic', sans-serif; }
         #game-container { position: relative; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }
-        canvas { display: block; max-width: 100%; max-height: 100%; background: #050510; border: 1px solid #444; touch-action: none; }
+        canvas { display: block; max-width: 100%; max-height: 100%; background: radial-gradient(circle, #0a1020, #000); border: 1px solid #444; touch-action: none; }
         
         #ui { position: absolute; top: 10px; width: 90%; max-width: 440px; pointer-events: none; background: rgba(0,0,0,0.8); padding: 12px; border-radius: 10px; z-index: 10; border: 1px solid #0ff; color: #fff; }
         .ui-row { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 5px; }
@@ -15,24 +15,38 @@
         #hp-bar-fill { width: 100%; height: 100%; background: linear-gradient(90deg, #f00, #0f0); transition: width 0.2s; }
         
         .overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(10,10,30,0.95); padding: 25px; border: 2px solid #0ff; text-align: center; z-index: 100; border-radius: 15px; color: #fff; width: 280px; }
-        button { background: #1a1a1a; color: #0ff; border: 1px solid #0ff; padding: 12px; cursor: pointer; border-radius: 8px; font-weight: bold; margin: 8px 0; width: 100%; }
-        button:disabled { color: #555; border-color: #333; cursor: not-allowed; }
+        button { background: #1a1a1a; color: #0ff; border: 1px solid #0ff; padding: 12px; cursor: pointer; border-radius: 8px; font-weight: bold; margin: 8px 0; width: 100%; transition: 0.3s; }
+        button:hover { background: #0ff; color: #000; }
+        
         #combo-ui { position: absolute; right: 20px; top: 100px; color: #ff0; font-size: 24px; font-weight: bold; text-shadow: 0 0 10px #f00; pointer-events: none; }
-        #start-overlay { display: flex; flex-direction: column; }
+        #help-info { font-size: 12px; text-align: left; line-height: 1.6; }
     </style>
 </head>
 <body>
     <div id="game-container">
         <div id="start-overlay" class="overlay">
-            <h1>VIRUS SHOOTER</h1>
-            <p>준비되셨나요?</p>
-            <button onclick="startGame()">START GAME</button>
+            <h1 style="color:#0ff; margin:0 0 10px 0;">CORONA BUSTER</h1>
+            <p style="font-size:13px; color:#aaa; margin-bottom:20px;">바이러스를 퇴치하고 지구를 구하세요!</p>
+            <button onclick="startGame()">백신 투입 (START)</button>
+        </div>
+
+        <div id="help-overlay" class="overlay" style="display:none;">
+            <h3>GAME INFO</h3>
+            <div id="help-info">
+                • 이동: 마우스 클릭/터치 드래그<br>
+                • 폭탄(Z): 화면 전체 타격 (보유: <span id="help-bomb-cnt">3</span>)<br>
+                • 일시정지(P): 게임 멈춤/재개<br>
+                • 업그레이드: 25킬마다 무기 선택<br>
+                • 아이템: 적 처치 시 확률적 등장<br>
+                [H] 체력 회복 / [B] 폭탄+보호막
+            </div>
+            <button onclick="toggleHelp()">닫기</button>
         </div>
 
         <div id="ui">
             <div class="ui-row">
                 <div>STAGE: <span id="stage-txt">1</span> | SCORE: <span id="score-txt">0</span></div>
-                <div>BOMB: <span id="bomb-txt">3</span> | <span id="shield-txt">SHIELD OFF</span></div>
+                <div>BOMB(Z): <span id="bomb-txt">3</span> | <span id="shield-txt">SHIELD OFF</span></div>
             </div>
             <div id="hp-bar-container"><div id="hp-bar-fill"></div></div>
         </div>
@@ -40,11 +54,11 @@
         <div id="combo-ui"></div>
 
         <div id="upgrade-menu" class="overlay" style="display:none;">
-            <h3>무기 강화</h3>
+            <h3>백신 강화</h3>
             <p id="limit-msg" style="font-size:10px; color:#ff0;"></p>
-            <button id="btn-machine" onclick="applyUpgrade('machine')">⚡ 머신건</button>
-            <button id="btn-laser" onclick="applyUpgrade('laser')">🔦 레이저</button>
-            <button id="btn-homing" onclick="applyUpgrade('homing')">🎯 유도 미사일</button>
+            <button id="btn-machine" onclick="applyUpgrade('machine')">⚡ 고속 분사기</button>
+            <button id="btn-laser" onclick="applyUpgrade('laser')">🔦 집중 살균 광선</button>
+            <button id="btn-homing" onclick="applyUpgrade('homing')">🎯 추적용 항체</button>
         </div>
 
         <canvas id="gameCanvas"></canvas>
@@ -56,41 +70,90 @@ const ctx = canvas.getContext('2d');
 const GAME_W = 480, GAME_H = 800;
 canvas.width = GAME_W; canvas.height = GAME_H;
 
-// ===== AUDIO SYSTEM =====
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+// ===== 오디오 설정 =====
+const AudioContext = window.AudioContext || window.webkitAudioContext;
+let audioCtx;
 const bgMusic = new Audio('music.mp3'); 
 bgMusic.loop = true;
-bgMusic.volume = 0.3;
+bgMusic.volume = 0.4;
 
-function playSound(f, type='sine', dur=0.1, vol=0.05) {
+function initAudio() {
+    if (!audioCtx) audioCtx = new AudioContext();
     if (audioCtx.state === 'suspended') audioCtx.resume();
-    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-    o.type = type; o.frequency.setValueAtTime(f, audioCtx.currentTime);
-    g.gain.setValueAtTime(vol, audioCtx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + dur);
-    o.connect(g); g.connect(audioCtx.destination);
-    o.start(); o.stop(audioCtx.currentTime + dur);
 }
 
-// ===== GAME STATE =====
+function playSound(f, type='sine', dur=0.1, vol=0.05) {
+    if (!audioCtx) return;
+    try {
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.type = type; o.frequency.setValueAtTime(f, audioCtx.currentTime);
+        g.gain.setValueAtTime(vol, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + dur);
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(); o.stop(audioCtx.currentTime + dur);
+    } catch(e) {}
+}
+
+// ===== 게임 상태 =====
 let stage = 1, score = 0, kills = 0, totalKills = 0, combo = 0, lastKillTime = 0;
-let isPaused = true, gameOver = false, shooting = false, gameStarted = false;
+let isPaused = true, gameOver = false, shooting = false, gameStarted = false, isHelpOpen = false;
+let bombCount = 3;
 let weapon = { machine: 0, laser: 0, homing: 0 };
 let player = { x: 240, y: 700, hp: 100, shield: 0, lastShot: 0 };
 
 let bullets = [], enemies = [], eBullets = [], items = [];
-let stars = Array.from({length: 40}, () => ({x: Math.random()*GAME_W, y: Math.random()*GAME_H, s: Math.random()*2+1}));
 
 function startGame() {
+    initAudio();
     document.getElementById('start-overlay').style.display = 'none';
     isPaused = false;
     gameStarted = true;
-    // 오디오 컨텍스트 재개 및 음악 재생
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-    bgMusic.play().catch(e => console.log("Music play failed:", e));
+    bgMusic.play().catch(err => console.log("Music play blocked"));
 }
 
-// ===== INPUTS =====
+// ===== 단축키 시스템 (P, Z, H) =====
+window.addEventListener('keydown', (e) => {
+    if (!gameStarted || gameOver) return;
+    
+    const key = e.key.toLowerCase();
+    if (key === 'p') { // 일시정지
+        isPaused = !isPaused;
+        if (isPaused) bgMusic.pause(); else bgMusic.play();
+    }
+    if (key === 'z') { // 폭탄
+        useBomb();
+    }
+    if (key === 'h') { // 도움말
+        toggleHelp();
+    }
+});
+
+function toggleHelp() {
+    isHelpOpen = !isHelpOpen;
+    isPaused = isHelpOpen;
+    document.getElementById('help-overlay').style.display = isHelpOpen ? 'block' : 'none';
+    document.getElementById('help-bomb-cnt').innerText = bombCount;
+    if (isPaused) bgMusic.pause(); else if (!gameOver) bgMusic.play();
+}
+
+function useBomb() {
+    if (bombCount > 0 && !isPaused) {
+        bombCount--;
+        playSound(100, 'sawtooth', 0.5, 0.2);
+        // 화면의 모든 적과 총알 제거 (보스 제외 또는 데미지)
+        enemies.forEach(e => {
+            if (e.isBoss) e.hp -= 50; 
+            else e.hp = 0;
+        });
+        eBullets = [];
+        // 화면 번쩍이는 효과는 draw에서 처리
+        flashEffect = 10; 
+        document.getElementById('bomb-txt').innerText = bombCount;
+    }
+}
+let flashEffect = 0;
+
+// ===== 입력 처리 (마우스/터치) =====
 function handleInput(e) {
     if (!gameStarted || gameOver || isPaused) return;
     const rect = canvas.getBoundingClientRect();
@@ -108,65 +171,71 @@ canvas.addEventListener('touchstart', (e) => { shooting = true; handleInput(e); 
 canvas.addEventListener('touchmove', (e) => { handleInput(e); e.preventDefault(); }, {passive: false});
 canvas.addEventListener('touchend', () => shooting = false);
 
-// ===== UPGRADE LOGIC =====
 function openUpgradeMenu() {
     isPaused = true;
+    bgMusic.pause();
     const menu = document.getElementById('upgrade-menu');
     menu.style.display = 'block';
-    
-    // 스테이지별 최대 강화 레벨 제한 (밸런스 조절)
-    // 1~4스테이지: 1렙 / 5~9스테이지: 2렙 / 10스테이지 이후: 제한 해제
     const maxLvl = stage < 5 ? 1 : (stage < 10 ? 2 : 5);
     document.getElementById('limit-msg').innerText = `현재 스테이지 최대 강화: LV.${maxLvl}`;
-
     ['machine', 'laser', 'homing'].forEach(type => {
         const btn = document.getElementById('btn-' + type);
         btn.disabled = weapon[type] >= maxLvl;
-        btn.innerText = `${type.toUpperCase()} (현재 LV.${weapon[type]})`;
     });
 }
 
 function applyUpgrade(t) {
     weapon[t]++;
     isPaused = false;
+    bgMusic.play();
     document.getElementById('upgrade-menu').style.display = 'none';
 }
 
 function shoot() {
     const now = Date.now();
-    let delay = 350 / (weapon.machine + 1); // 연사 속도 밸런스 조정
+    let delay = 350 / (weapon.machine + 1);
     if (now - player.lastShot < delay) return;
 
-    bullets.push({x: player.x, y: player.y, vx: 0, type: 'normal'});
+    bullets.push({x: player.x, y: player.y - 20, vx: 0, type: 'normal'});
     for(let i=0; i<weapon.machine; i++) {
-        bullets.push({x: player.x, y: player.y, vx: (Math.random()-0.5)*5, type: 'normal'});
+        bullets.push({x: player.x, y: player.y - 20, vx: (Math.random()-0.5)*5, type: 'normal'});
     }
-
     if(weapon.laser > 0) {
-        bullets.push({x: player.x, y: player.y, vx: 0, type: 'laser', pwr: weapon.laser});
+        bullets.push({x: player.x, y: player.y - 20, vx: 0, type: 'laser', pwr: weapon.laser});
         playSound(600, 'sawtooth', 0.1, 0.02);
     } else {
         playSound(450, 'sine', 0.08, 0.03);
     }
-
     if(weapon.homing > 0) {
-        for(let i=0; i<weapon.homing; i++) bullets.push({x: player.x, y: player.y, type: 'homing'});
+        for(let i=0; i<weapon.homing; i++) bullets.push({x: player.x, y: player.y - 20, type: 'homing'});
     }
     player.lastShot = now;
+}
+
+function drawVirus(ctx, x, y, r, color) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 10; i++) {
+        ctx.rotate((Math.PI * 2) / 10);
+        ctx.beginPath(); ctx.moveTo(0, -r); ctx.lineTo(0, -r - 8); ctx.stroke();
+        ctx.beginPath(); ctx.arc(0, -r - 8, 3, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
+    }
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
+    ctx.restore();
 }
 
 function update() {
     if (isPaused || gameOver) return;
     if (shooting) shoot();
 
-    stars.forEach(s => { s.y += 1; if(s.y > GAME_H) s.y = 0; });
-
     if (Math.random() < 0.02 + (stage * 0.006)) {
-        enemies.push({ x: Math.random()*(GAME_W-40)+20, y: -20, r: 20, hp: 2 + Math.floor(stage * 0.8), isBoss: false, lastShoot: 0 });
+        enemies.push({ x: Math.random()*(GAME_W-40)+20, y: -40, r: 18, hp: 2 + Math.floor(stage * 0.8), isBoss: false, lastShoot: 0 });
     }
 
     if (kills > 0 && kills % 50 === 0) {
-        enemies.push({ x: GAME_W/2, y: 100, r: 60, hp: 60 + (stage*25), isBoss: true, lastShoot: 0, vx: 2 + (stage*0.1) });
+        enemies.push({ x: GAME_W/2, y: 100, r: 55, hp: 60 + (stage*30), isBoss: true, lastShoot: 0, vx: 2 + (stage*0.1) });
         kills++; 
     }
 
@@ -184,7 +253,7 @@ function update() {
         if (b.y < -50) bullets.splice(bi, 1);
 
         enemies.forEach((e, ei) => {
-            if (Math.hypot(b.x - e.x, b.y - e.y) < e.r) {
+            if (Math.hypot(b.x - e.x, b.y - e.y) < e.r + 10) {
                 let dmg = b.type === 'laser' ? 1 + (b.pwr * 0.5) : 1;
                 e.hp -= dmg;
                 if (b.type !== 'laser') bullets.splice(bi, 1);
@@ -196,7 +265,7 @@ function update() {
                     score += 100 + (combo * 10);
                     kills++; totalKills++;
                     if (e.isBoss) { stage++; kills = 0; items.push({x: e.x, y: e.y, type: 'hp'}); }
-                    if (totalKills % 20 === 0) items.push({x: e.x, y: e.y, type: 'shield'});
+                    if (totalKills % 25 === 0) items.push({x: e.x, y: e.y, type: 'shield'});
                     enemies.splice(ei, 1);
                 }
             }
@@ -210,13 +279,8 @@ function update() {
                 for(let i=-2; i<=2; i++) eBullets.push({x: e.x, y: e.y+e.r, vx: i*1.5, vy: 4 + (stage*0.1)});
                 e.lastShoot = Date.now();
             }
-        } else {
-            e.y += 2.5 + (stage * 0.15);
-            if (Date.now() - e.lastShoot > 2500 && Math.random() < 0.01) {
-                eBullets.push({x: e.x, y: e.y+e.r, vx: 0, vy: 5 + (stage*0.1)});
-                e.lastShoot = Date.now();
-            }
-        }
+        } else { e.y += 2.5 + (stage * 0.15); }
+        if (e.y > GAME_H + 50) enemies.splice(enemies.indexOf(e), 1);
     });
 
     eBullets.forEach((eb, ebi) => {
@@ -232,78 +296,75 @@ function update() {
     items.forEach((it, iti) => {
         it.y += 2;
         if (Math.hypot(it.x - player.x, it.y - player.y) < 30) {
-            if (it.type === 'shield') player.shield = 5;
+            if (it.type === 'shield') { player.shield = 5; bombCount++; }
             else player.hp = Math.min(100, player.hp + 30);
             playSound(800, 'sine', 0.2, 0.1);
             items.splice(iti, 1);
         }
     });
 
-    if (totalKills > 0 && totalKills % 25 === 0) {
-        totalKills++;
-        openUpgradeMenu();
-    }
-
+    if (totalKills > 0 && totalKills % 25 === 0) { totalKills++; openUpgradeMenu(); }
     if (player.hp <= 0) { gameOver = true; bgMusic.pause(); }
 
     document.getElementById('hp-bar-fill').style.width = player.hp + "%";
     document.getElementById('stage-txt').innerText = stage;
     document.getElementById('score-txt').innerText = score;
+    document.getElementById('bomb-txt').innerText = bombCount;
     document.getElementById('shield-txt').innerText = player.shield > 0 ? "SHIELD ON" : "SHIELD OFF";
-    document.getElementById('combo-ui').innerText = combo > 1 ? combo + " COMBO!" : "";
 }
 
 function draw() {
     ctx.clearRect(0, 0, GAME_W, GAME_H);
-    ctx.fillStyle = '#fff';
-    stars.forEach(s => ctx.fillRect(s.x, s.y, s.s, s.s));
+    
+    if (flashEffect > 0) {
+        ctx.fillStyle = `rgba(255,255,255,${flashEffect/10})`;
+        ctx.fillRect(0,0,GAME_W,GAME_H);
+        flashEffect--;
+    }
 
     if (player.shield > 0) {
         ctx.strokeStyle = '#0ff'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(player.x, player.y, 30, 0, Math.PI*2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(player.x, player.y, 35, 0, Math.PI*2); ctx.stroke();
     }
-    ctx.fillStyle = '#0ff';
-    ctx.beginPath(); ctx.moveTo(player.x, player.y-15); ctx.lineTo(player.x+15, player.y+15); ctx.lineTo(player.x-15, player.y+15); ctx.fill();
+    ctx.fillStyle = '#eee'; ctx.fillRect(player.x-6, player.y-25, 12, 45);
+    ctx.fillStyle = '#999'; ctx.fillRect(player.x-1, player.y-35, 2, 10);
+    ctx.fillStyle = '#0cf'; ctx.fillRect(player.x-4, player.y-5, 8, 20);
 
     enemies.forEach(e => {
-        ctx.fillStyle = e.isBoss ? '#f00' : '#0f0';
-        ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI*2); ctx.fill();
+        drawVirus(ctx, e.x, e.y, e.r, e.isBoss ? '#ff3366' : '#55ff55');
         if(e.isBoss) {
-            ctx.fillStyle = '#333'; ctx.fillRect(e.x-40, e.y-e.r-15, 80, 5);
-            ctx.fillStyle = '#f00'; ctx.fillRect(e.x-40, e.y-e.r-15, 80*(e.hp/(60+stage*25)), 5);
+            ctx.fillStyle = '#333'; ctx.fillRect(e.x-40, e.y-e.r-25, 80, 6);
+            ctx.fillStyle = '#f00'; ctx.fillRect(e.x-40, e.y-e.r-25, 80*(e.hp/(60+stage*30)), 6);
         }
     });
 
     bullets.forEach(b => {
-        ctx.fillStyle = b.type === 'laser' ? '#f0f' : b.type === 'homing' ? '#0f0' : '#ff0';
-        let w = b.type === 'laser' ? 4 + (b.pwr * 1.5) : 4;
-        ctx.fillRect(b.x - w/2, b.y, w, b.type === 'laser' ? 30 : 10);
+        ctx.fillStyle = b.type === 'laser' ? '#f0f' : b.type === 'homing' ? '#0f0' : '#0ff';
+        ctx.beginPath(); ctx.ellipse(b.x, b.y, (b.type==='laser'?8:2.5), (b.type==='laser'?20:7.5), 0, 0, Math.PI*2); ctx.fill();
     });
 
     eBullets.forEach(eb => {
-        ctx.fillStyle = '#ff7700';
-        ctx.beginPath(); ctx.arc(eb.x, eb.y, 5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#ddff00';
+        ctx.beginPath(); ctx.arc(eb.x, eb.y, 6, 0, Math.PI*2); ctx.fill();
     });
 
     items.forEach(it => {
         ctx.fillStyle = it.type === 'shield' ? '#0af' : '#f06';
-        ctx.beginPath(); ctx.arc(it.x, it.y, 12, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#fff'; ctx.font = '10px Arial'; ctx.textAlign='center';
-        ctx.fillText(it.type === 'shield' ? 'S' : 'H', it.x, it.y+4);
+        ctx.beginPath(); ctx.roundRect(it.x-15, it.y-15, 30, 30, 5); ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 14px Arial'; ctx.textAlign='center';
+        ctx.fillText(it.type === 'shield' ? 'B' : 'H', it.x, it.y+5);
     });
 
     if (gameOver) {
         ctx.fillStyle = 'rgba(0,0,0,0.8)'; ctx.fillRect(0,0,GAME_W, GAME_H);
         ctx.fillStyle = '#fff'; ctx.font = '30px Arial'; ctx.textAlign = 'center';
-        ctx.fillText("GAME OVER", GAME_W/2, GAME_H/2);
-        ctx.font = '20px Arial'; ctx.fillText("Tap to Restart", GAME_W/2, GAME_H/2 + 50);
+        ctx.fillText("방역 실패!", GAME_W/2, GAME_H/2);
+        ctx.font = '20px Arial'; ctx.fillText("클릭하여 재도전", GAME_W/2, GAME_H/2 + 50);
     }
 }
 
 function loop() {
-    update();
-    draw();
-    requestAnimationFrame(loop);
+    update(); draw(); requestAnimationFrame(loop);
 }
 
 canvas.addEventListener('click', () => { if(gameOver) location.reload(); });
